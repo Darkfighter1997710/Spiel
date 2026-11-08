@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Verlies – 3D-Abenteuer</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Spieloberfläche (erst nach dem Start sichtbar) -->
+  <div id="hud" hidden>
+    <div id="touch-layer"></div>
+    <div id="joystick" aria-hidden="true"><div id="joy-knob"></div></div>
+
+    <button id="btn-settings" class="icon-btn" type="button" aria-label="Einstellungen">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+    </button>
+
+    <button id="btn-sprint" class="round-btn" type="button" aria-label="Sprinten (gedrückt halten)">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l6 6-6 6M13 6l6 6-6 6"/></svg>
+      <span>Sprint</span>
+    </button>
+    <button id="btn-jump" class="round-btn" type="button" aria-label="Springen">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+      <span>Sprung</span>
+    </button>
+  </div>
+
+  <!-- Einstellungen -->
+  <div id="settings-panel" class="overlay" hidden>
+    <div class="card">
+      <h2>Einstellungen</h2>
+      <label class="row">
+        <span>Kamera-Empfindlichkeit <output id="sens-out">1.0</output></span>
+        <input id="sens" type="range" min="0.3" max="2.5" step="0.05" value="1">
+      </label>
+      <label class="row">
+        <span>Helligkeit <output id="bright-out">1.0</output></span>
+        <input id="bright" type="range" min="0.6" max="2.2" step="0.05" value="1">
+      </label>
+      <label class="row check">
+        <input id="invert" type="checkbox">
+        <span>Blick nach oben/unten umkehren</span>
+      </label>
+      <div class="actions">
+        <button id="btn-fullscreen" class="btn" type="button" hidden>Vollbild</button>
+        <button id="btn-resume" class="btn primary" type="button">Weiter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Startbildschirm -->
+  <div id="start-screen" class="overlay">
+    <div class="card start">
+      <p class="kicker">Kapitel 1</p>
+      <h1>Verlies</h1>
+      <p class="sub">Du erwachst in einer kalten Zelle …</p>
+      <button id="start-btn" class="btn primary big" type="button" disabled>Lade Welt …</button>
+      <ul class="hints">
+        <li><b>Links</b> den Finger aufsetzen und ziehen: gehen</li>
+        <li><b>Rechts</b> wischen: umsehen</li>
+        <li>Tasten <b>Sprint</b> (halten) und <b>Sprung</b> (tippen)</li>
+      </ul>
+      <p id="engine-info" class="tiny"></p>
+    </div>
+  </div>
+
+  <!-- Hinweis im Hochformat -->
+  <div id="rotate-hint" class="overlay">
+    <div class="card"><h2>Bitte Gerät drehen</h2><p>Das Spiel läuft im Querformat.</p></div>
+  </div>
+
+  <!-- Fehleranzeige -->
+  <div id="error-box" class="overlay" hidden>
+    <div class="card">
+      <h2 id="error-title">Fehler</h2>
+      <p id="error-text"></p>
+      <button id="error-reload" class="btn primary" type="button">Neu laden</button>
+    </div>
+  </div>
+
+  <script type="module" src="main.mjs"></script>
+</body>
+</html>

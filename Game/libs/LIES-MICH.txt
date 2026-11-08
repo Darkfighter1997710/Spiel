@@ -1,0 +1,18 @@
+HIER GEHOERT DIE DATEI  three.module.min.js  HIN
+================================================
+
+Das Spiel nutzt die 3D-Bibliothek Three.js (Version 0.170.0).
+
+- Liegt die Datei hier (libs/three.module.min.js), laeuft das Spiel komplett offline
+  und kann spaeter als Android-App verpackt werden.
+- Fehlt sie, laedt das Spiel dieselbe Version automatisch aus dem Internet. Das
+  funktioniert nur mit Internetverbindung.
+
+So kommt die Datei hierher (Smartphone):
+1. Diese Adresse im Handy-Browser oeffnen:
+   https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js
+2. Seite speichern ("Teilen" bzw. Menue -> "Seite herunterladen") und die Datei
+   genau so benennen:  three.module.min.js
+3. Die Datei in diesen Ordner (libs) in deinem GitHub-Projekt hochladen.
+
+Ausfuehrliche Anleitung: README.md

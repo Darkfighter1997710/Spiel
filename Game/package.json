@@ -1,0 +1,11 @@
+{
+  "name": "verlies-3d-abenteuer",
+  "version": "0.1.0",
+  "description": "3D-Abenteuerspiel (Three.js) – Phase 1: Gefängniszelle",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node tests/physics.test.mjs && node tests/controls.test.mjs && node tests/build.smoke.mjs",
+    "prepare-web": "node scripts/prepare-web.mjs"
+  }
+}
