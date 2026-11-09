@@ -57,3 +57,22 @@ export const GUARD = Object.freeze({
   stopZ: -3.3,             // bleibt ca. 0,6 m vor dem Gitter stehen
   headHeight: 1.68,        // Augenhöhe des Wärters (Ziel für den Blick der Kamera)
 });
+
+// ---- Schlafen im Bett ----
+// Kopfposition auf dem Kissen (links hinten) und Blickrichtung beim Aufwachen: hinüber zur Mitte der Zelle,
+// wo das Sonnenlicht auf den Boden fällt. yaw/pitch werden aus dem Blickziel berechnet (gleiche Formel wie in main.js).
+const SLEEP_EYE = { x: -2.0, y: 0.72, z: 1.8 };
+const SLEEP_LOOK = { x: 0.2, y: 0.9, z: -1.0 };
+export const SLEEP_POSE = Object.freeze({
+  ...SLEEP_EYE,
+  yaw: Math.atan2(-(SLEEP_LOOK.x - SLEEP_EYE.x), -(SLEEP_LOOK.z - SLEEP_EYE.z)),
+  pitch: Math.atan2(SLEEP_LOOK.y - SLEEP_EYE.y, Math.hypot(SLEEP_LOOK.x - SLEEP_EYE.x, SLEEP_LOOK.z - SLEEP_EYE.z)),
+  reach: 0.95,   // so nah (Meter, gemessen bis zur Bettkante) muss der Spieler sein, damit „Schlafen“ erscheint
+});
+
+// Wie weit (Meter) ist der Mittelpunkt (x, z) von der Bettkante entfernt? 0 = auf dem Bett.
+export function distanceToBed(x, z) {
+  const cx = Math.min(Math.max(x, BED.minX), BED.maxX);
+  const cz = Math.min(Math.max(z, BED.minZ), BED.maxZ);
+  return Math.hypot(x - cx, z - cz);
+}

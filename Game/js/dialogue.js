@@ -5,8 +5,8 @@
 
 export const SPEAKER_GUARD = 'Wärter';
 
-// Der Wärter: grummelig, trockener Humor, zwölf Jahre im Dienst. Er verrät genug, um neugierig zu machen,
-// aber nichts Festes (es gibt noch kein Aufgabensystem).
+// Der Wärter: grummelig, trockener Humor, zwölf Jahre im Dienst. Er sagt dem Gefangenen, dass morgen die Hinrichtung
+// ansteht, und schickt ihn schlafen (Bett: siehe sleep-event.js).
 export const GUARD_DIALOGUE = Object.freeze({
   start: 'g1',
   nodes: {
@@ -41,41 +41,41 @@ export const GUARD_DIALOGUE = Object.freeze({
     },
     m1: {
       speaker: SPEAKER_GUARD,
-      text: 'Hör gut zu, Gefangener. Der Hauptmann hat nach dir gefragt. Er glaubt, du weißt etwas. Etwas Wichtiges.',
+      text: 'Hör gut zu, Gefangener. Morgen früh holen sie dich ab. Zur Hinrichtung.',
       choices: [
-        { text: 'Ich weiß gar nichts.', next: 'd1' },
-        { text: 'Was will er von mir wissen?', next: 'd2' },
-        { text: 'Vielleicht können wir verhandeln.', next: 'd3' },
+        { text: 'Das kann nicht dein Ernst sein!', next: 'd1' },
+        { text: 'Was habe ich getan?', next: 'd2' },
+        { text: 'Gibt es keinen Ausweg?', next: 'd3' },
       ],
     },
     d1: {
       speaker: SPEAKER_GUARD,
-      text: 'Genau das habe ich ihm gesagt. Er glaubt dir nicht. Ehrlich gesagt: Ich dir auch nicht.',
+      text: 'Mein voller Ernst. Der Henker hat seine Axt schon geschliffen. Er ist sehr gewissenhaft.',
       next: 'e1',
     },
     d2: {
       speaker: SPEAKER_GUARD,
-      text: 'Das sagt er dir selbst. Falls du dann noch bei Verstand bist. Seine Verhöre sind … gründlich.',
+      text: 'Das weiß nur der Hauptmann. Mir sagt keiner etwas. Ich halte nur die Schlüssel und den Mund.',
       next: 'e1',
     },
     d3: {
       speaker: SPEAKER_GUARD,
-      text: 'Verhandeln? Du hast nichts, und ich habe die Schlüssel. Aber Mut gefällt mir. Der ist hier unten selten.',
+      text: 'Einen Ausweg? Nicht von mir. Aber Mut gefällt mir. Der ist hier unten selten.',
       next: 'e1',
     },
     e1: {
       speaker: SPEAKER_GUARD,
-      text: 'Ein Rat, umsonst: Heute Nacht wird die Wache gewechselt. Zwei Stunden lang schaut keiner nach den Zellen.',
+      text: 'Ein Rat, umsonst: Geh jetzt schlafen, damit du morgen fit bist. Zur Hinrichtung kommt man besser ausgeruht.',
       next: 'e2',
     },
     e2: {
       speaker: SPEAKER_GUARD,
-      text: 'Wer gründlich sucht, findet vielleicht, was seine Vorgänger hier zurückgelassen haben.',
+      text: 'Da hinten steht dein Bett. Es ist hart und kalt, aber es ist das letzte, das du bekommst.',
       next: 'e3',
     },
     e3: {
       speaker: SPEAKER_GUARD,
-      text: 'Ich war nie hier. Und du hast nichts gehört. Schlaf gut … falls du kannst.',
+      text: 'Ich war nie hier. Gute Nacht, Gefangener … und schlaf gut, falls du kannst.',
       next: null,
     },
   },

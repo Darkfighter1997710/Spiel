@@ -158,3 +158,32 @@ html, body {
 @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 /* im Gespräch: Joystick und Spiel-Buttons ausblenden */
 .dialogue-active .round-btn, .dialogue-active #joystick { display: none; }
+
+/* ---------- Schlafen ---------- */
+.pill-btn {
+  position: fixed; z-index: 4;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+  min-height: 52px; padding: 10px 24px;
+  display: flex; align-items: center; gap: 10px;
+  font: 600 16px system-ui, sans-serif; letter-spacing: 0.04em; color: var(--ink);
+  background: rgba(232, 160, 74, 0.28); border: 1.5px solid var(--accent); border-radius: 26px;
+  touch-action: manipulation;
+}
+.pill-btn:active { background: rgba(232, 160, 74, 0.55); }
+.toast {
+  position: fixed; z-index: 4; left: 50%; transform: translateX(-50%);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+  max-width: 90vw; padding: 10px 18px; border-radius: 14px;
+  font-size: 14px; text-align: center; color: var(--ink);
+  background: rgba(20, 15, 10, 0.7); border: 1px solid var(--stroke);
+  pointer-events: none;
+}
+#sleep-fade {
+  position: fixed; inset: 0; z-index: 6;          /* über dem Spiel, unter dem Einstellungs-Symbol (7) */
+  background: #000; opacity: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+#sleep-caption { margin: 0; font-size: 22px; font-weight: 300; letter-spacing: 0.12em; color: var(--ink); text-align: center; padding: 0 24px; }
+/* beim Schlafen: Joystick und Buttons ausblenden */
+.sleeping .round-btn, .sleeping #joystick, .sleeping #btn-sleep, .sleeping #sleep-hint { display: none; }

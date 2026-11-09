@@ -1,4 +1,4 @@
-// world.js – baut die Gefängniszelle (Wände, Möbel, Gittertür, Fackel, Licht).
+// world.js – baut die Gefängniszelle (Wände, Möbel, Gittertür, Fackel, Licht, Tageslicht durch das Fenster).
 // Alle Maße kommen aus layout.js, damit Optik und Kollisionen übereinstimmen.
 
 import { createTextures } from './textures.js';
@@ -10,6 +10,9 @@ import {
 const TORCH_INTENSITY = 38;     // Helligkeit der Fackel
 const CORRIDOR_INTENSITY = 14;  // Helligkeit des Gangs hinter der Tür
 const AMBIENT_INTENSITY = 1.4;  // schwaches Grundlicht (sonst wäre alles pechschwarz)
+// Tageslicht (nach dem Schlafen): Sonne scheint durch das Fenster, die ganze Zelle wird heller
+const SUN_INTENSITY = 140;      // Helligkeit des Sonnenstrahls aus dem Fenster
+const DAY_AMBIENT = 3.4;        // Grundlicht am Tag (statt AMBIENT_INTENSITY)
 
 export function createWorld(THREE, renderer) {
   const T = createTextures(THREE, renderer);
@@ -363,6 +366,17 @@ export function createWorld(THREE, renderer) {
   hemi.layers.enable(1);   // Ebene 1 = Arme (werden in eigenem Durchgang gezeichnet)
   scene.add(hemi);
 
+  // Sonnenstrahl: kommt vom Fenster (hinten, Wandmitte) schräg nach unten in die Zelle. Das Licht sitzt direkt vor dem
+  // Fenster im Raum (die Wand ist massiv und würde sonst alles abschatten). Es ist immer vorhanden, aber nachts
+  // auf Helligkeit 0 – so ändert sich die Lichtanzahl nie (sonst müssten alle Shader neu übersetzt werden = Ruckler).
+  // Kein Schatten: Im Strahl steht nichts, und so spart es Grafikspeicher.
+  const sunLight = new THREE.SpotLight(0xfff0cf, 0, 0, 0.22, 0.55, 2);
+  sunLight.position.set(0, 1.95, D - 0.12);
+  sunLight.target.position.set(0.1, 0, -0.5);
+  sunLight.layers.enable(1);
+  scene.add(sunLight);
+  scene.add(sunLight.target);
+
   const torchLight = new THREE.PointLight(0xff9a3c, TORCH_INTENSITY, 0, 2);
   torchLight.position.copy(flameWorld);
   torchLight.castShadow = true;
@@ -404,6 +418,29 @@ export function createWorld(THREE, renderer) {
   dust.frustumCulled = false;
   scene.add(dust);
 
+  // ---------- Tageslicht: 0 = Nacht, 1 = Sonne scheint durch das Fenster ----------
+  const NIGHT = {
+    sky: new THREE.Color(0x101a30), hemiSky: new THREE.Color(0x4a5a80), hemiGround: new THREE.Color(0x2a1d12),
+    fog: new THREE.Color(0x050302),
+  };
+  const DAY = {
+    sky: new THREE.Color(0xcfe8ff), hemiSky: new THREE.Color(0xb8c8e8), hemiGround: new THREE.Color(0x6b5238),
+    fog: new THREE.Color(0x2b2620),
+  };
+  let daylight = 0;
+  function setDaylight(amount) {
+    const d = Math.max(0, Math.min(1, Number.isFinite(amount) ? amount : 0));
+    daylight = d;
+    sunLight.intensity = SUN_INTENSITY * d;
+    hemi.intensity = AMBIENT_INTENSITY + (DAY_AMBIENT - AMBIENT_INTENSITY) * d;
+    hemi.color.lerpColors(NIGHT.hemiSky, DAY.hemiSky, d);
+    hemi.groundColor.lerpColors(NIGHT.hemiGround, DAY.hemiGround, d);
+    M.sky.color.lerpColors(NIGHT.sky, DAY.sky, d);
+    scene.fog.color.lerpColors(NIGHT.fog, DAY.fog, d);
+    dust.material.opacity = 0.45 + 0.25 * d;   // im Sonnenstrahl sieht man den Staub besser
+  }
+  setDaylight(0);
+
   // ---------- Animation (Fackelflackern, Staub) ----------
   function update(t) {
     const n = 0.5 * Math.sin(t * 13.1) + 0.3 * Math.sin(t * 7.7 + 1.3) + 0.2 * Math.sin(t * 23.3 + 0.4);
@@ -427,6 +464,8 @@ export function createWorld(THREE, renderer) {
     spawn: SPAWN,
     textures: T,
     setEndDoor,
+    setDaylight,
+    get daylight() { return daylight; },
     update,
   };
 }

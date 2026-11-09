@@ -5,9 +5,10 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 
 ## Stand
 
-* **Version 0.3.0:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
+* **Version 0.4.0:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
   Gehen/Sprinten/Springen, Physik und Kollisionen, symmetrische Wände, **Wärter-Auftritt mit Gespräch**
-  (nach 15 s Spielzeit).
+  (nach 15 s Spielzeit; er kündigt die Hinrichtung für morgen an und schickt den Spieler schlafen),
+  **Schlafen im Bett mit Sonnenaufgang** (danach ist die Zelle durch das Fenster hell).
 * **Nicht vorhanden (bewusst):** Monster, Waffen, Inventar, Quests, Ton. Der Wärter ist die einzige Figur und hat
   keine Spielmechanik (kein Kampf, keine Belohnung); sein Gespräch ist reine Geschichte.
 * Spielt als GitHub Pages: `https://darkfighter1997710.github.io/Spiel/Game/`.
@@ -35,6 +36,7 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 | `js/world.js` | baut Zelle, Möbel, Gittertür, Fackel, Licht, Gang, Staub; liefert `scene`, `colliders`, `bounds`, `spawn`, `textures`, `update(t)` |
 | `js/arms.js` | `createArms`: Arme und Hände an der Kamera samt Animation |
 | `js/guard-event.js` | `GuardEvent`: Zeitplan des Wärter-Auftritts (Zustandsautomat, **ohne Three.js**, testbar) |
+| `js/sleep-event.js` | `SleepEvent`: Ablauf „Schlafen“ (Zustandsautomat, **ohne Three.js**, testbar): Schwarzblende, liegen, aufwachen, Tageslicht |
 | `js/guard.js` | `createGuard`: Wärter-Figur aus einfachen Formen samt Animation (Gehen, Kopf folgt Spieler, Sprechen) |
 | `js/dialogue.js` | Gesprächstext (`GUARD_DIALOGUE`), `validateDialogue`, `DialogueRunner` (Schreibmaschine, Antippen, Antworten); **ohne Anzeige**, testbar |
 | `js/dialogue-ui.js` | zeigt ein Gespräch am Bildschirm (Textfeld, Antwort-Knöpfe) |
@@ -65,7 +67,30 @@ dem Start, der ganze Auftritt dauert je nach Lesetempo ca. 30–60 s.
   Leichte Eigenhelligkeit, damit er im Gang nicht schwarz wirkt.
 * **Anpassen:** Wartezeit und Tempo in `GUARD_EVENT` (guard-event.js), Weg in `GUARD` (layout.js), Text in
   `GUARD_DIALOGUE` (dialogue.js; `validateDialogue` prüft ihn, Test `dialogue.test.js`).
+  **Inhalt (seit 0.4.0):** Der Wärter sagt, dass der Gefangene morgen früh zur Hinrichtung abgeholt wird, und rät, jetzt zu
+  schlafen, um morgen fit zu sein; er zeigt auf das Bett. Gesprächsform (3 + 3 Antworten, 9 Wege) unverändert.
   Regeln für Texte: höchstens 130 Zeichen pro Sprechblase, Antworten höchstens 38 Zeichen (Handy-Lesbarkeit).
+
+## Schlafen und Tageslicht
+
+* **Voraussetzung:** Der Wärter ist fertig (`guardEvent.done`: Gespräch vorbei, Tür zu). Dann erscheint ein Hinweis
+  „Geh zum Bett“ (max. 8 s), und **nahe am Bett** (≤ 0,95 m Abstand zur Bettkante, `distanceToBed`, `SLEEP_POSE.reach` in
+  layout.js) der Knopf **Schlafen** (`#btn-sleep`). Schlafen geht **einmal pro Spielstart**.
+* **Ablauf** (`SleepEvent`, sleep-event.js): `fade_out` (1,4 s schwarz, „Du schläfst ein …“) → `asleep` (2,6 s schwarz, Kamera
+  springt unsichtbar ins Bett, „Am nächsten Morgen …“) → `wake` (4 s: Schwarz blendet aus, **Tageslicht 0 → 1**) → `get_up`
+  (1,6 s: Kamera blendet zurück an den Platz am Bett) → `done`. Zeiten in `SLEEP`. Pausen zählen nicht.
+* **Kamera:** `main.js` (`updateCamera`) mischt mit `sleep.lying` zwischen Stehen und `SLEEP_POSE` (Kopf auf dem Kissen,
+  x −2,0 / y 0,72 / z 1,8, Blick zur Zellenmitte, wo die Sonne auf den Boden fällt). Die Variablen `yaw`/`pitch` bleiben
+  unverändert, deshalb schaut der Spieler nach dem Aufstehen wieder in die alte Richtung. Arme sind im Liegen ausgeblendet.
+* **Eingaben gesperrt** während `sleep.active` (Klasse `.sleeping` blendet Joystick und Buttons aus; Einstellungs-Symbol bleibt).
+* **Tageslicht** (`world.setDaylight(0..1)`, world.js): (1) `SpotLight` „Sonne“ direkt vor dem Fenster, schräg in die Zelle,
+  **ohne Schatten**; (2) Hemisphärenlicht von `AMBIENT_INTENSITY` auf `DAY_AMBIENT`, heller/wärmer; (3) Himmel im Fenster
+  von dunkelblau auf hellblau; (4) Nebel heller; (5) Staub deutlicher. Das Sonnenlicht existiert **von Anfang an mit
+  Helligkeit 0** – die Lichtanzahl ändert sich nie (sonst müssten alle Shader neu übersetzt werden = Ruckler). Das Tageslicht
+  bleibt nach dem Schlafen dauerhaft. Werte: `SUN_INTENSITY`, `DAY_AMBIENT` oben in world.js.
+* **Fenster:** Es ist nur eine bemalte Fläche in der massiven Rückwand (kein echtes Loch), deshalb sitzt die Sonne im Raum
+  vor der Wand. Wer ein echtes Loch/Schatten der Gitterstäbe möchte, muss Wand und Schattenberechnung (statisch,
+  `shadowMap.autoUpdate = false`) anpassen.
 
 ## Koordinaten und Einheiten
 
@@ -106,15 +131,16 @@ Tür in der vorderen Wand (z = −2,2), Gang dahinter nur sichtbar. Spawn (0,4 /
 | `arms.test.js` | Armbewegung: gegengleich, Sprint stärker, Faust, Sprung, Zufallsdauertest |
 | `build.smoke.test.js` | Aufbau von Texturen und Welt läuft ohne Programmfehler (Three.js/Canvas als Attrappe) |
 | `dialogue.test.js` | Gespräch: Verweise, Schleifenfreiheit, alle 9 Wege enden, Schreibmaschine, Antippen, Antworten, Textlängen |
+| `sleep-event.test.js` | Schlafen: Reihenfolge, Werte 0..1, Hinlegen nur im Schwarzen, Tageslicht steigt nur und bleibt, einmalig, Pause, Zufallsläufe, Schlafpose liegt auf dem Bett |
 | `guard-event.test.js` | Zeitplan: zählt nur Spielzeit, 15 s, Reihenfolge der Zustände, Sperre nur im Gespräch, Pause, Zufallsläufe |
 | `guard.test.js` | Wärter-Animation: Beine gegengleich, Kopf folgt und ist begrenzt, Mund beim Sprechen, Zufalls-Dauertest |
-| `game.integration.test.js` | echtes `main.js` mit Attrappen: Start, Joystick, Sprint gegen Tür, Sprung, Zeichenreihenfolge, **Wärter erscheint nicht vor 15 s, Gespräch komplett durchgespielt, Steuerung gesperrt und danach wieder frei**, Einstellungen |
+| `game.integration.test.js` | echtes `main.js` mit Attrappen: Start, Joystick, Sprint gegen Tür, Sprung, Zeichenreihenfolge, **Wärter erscheint nicht vor 15 s, Gespräch komplett durchgespielt, Steuerung gesperrt und danach wieder frei, zum Bett laufen, Knopf „Schlafen“, schwarz, Kamera im Bett, Sonne geht auf (Helligkeit gelesen), Aufstehen, Knopf kommt nicht ein zweites Mal**, Einstellungen |
 
 ## Teststatus: was NICHT geprüft ist
 
 * **Optik** (Aussehen von Zelle, Texturen, Licht, Armen/Händen, Symmetrie auf dem Bildschirm, **Wärter, Tür am Gangende,
-  Gesprächsfeld**): kein Browser/keine Grafikkarte in der Entwicklungsumgebung. Lichtwerte sind geschätzt (daher der
-  Helligkeitsregler). Ob der Wärter im Gang gut ausgeleuchtet und gut lesbar ist, ist unbekannt.
+  Gesprächsfeld, Sonnenstrahl und Tageshelligkeit, Blick aus dem Bett, Schwarzblende mit Text, Knopf „Schlafen“**): kein Browser/keine Grafikkarte in der Entwicklungsumgebung. Lichtwerte sind geschätzt (daher der
+  Helligkeitsregler). **Ob der Tag deutlich heller wirkt oder zu stark überstrahlt, ist unbekannt** (`SUN_INTENSITY`, `DAY_AMBIENT`). Ob der Wärter im Gang gut ausgeleuchtet und gut lesbar ist, ist unbekannt.
 * **Gefühl des Auftritts** (Tempo, Kamerafahrt zum Wärter, Lesbarkeit des Textes auf dem Handy).
 * **Echtes Handy** (Bildrate, Gefühl der Steuerung, Vollbild, Querformat-Sperre).
 * **Echte Three.js-Bibliothek:** Tests nutzen eine Attrappe; Aufrufe wurden nach bestem Wissen für r170 geschrieben.

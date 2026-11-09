@@ -32,6 +32,13 @@
       </div>
     </div>
 
+    <!-- Schlafen (erscheint nur am Bett, nachdem der Wärter gesprochen hat) -->
+    <div id="sleep-hint" class="toast" hidden>Geh zum Bett (links hinten), um zu schlafen.</div>
+    <button id="btn-sleep" class="pill-btn" type="button" hidden>
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      <span>Schlafen</span>
+    </button>
+
     <button id="btn-settings" class="icon-btn" type="button" aria-label="Einstellungen">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
     </button>
@@ -45,6 +52,9 @@
       <span>Sprung</span>
     </button>
   </div>
+
+  <!-- Schwarzblende beim Schlafen -->
+  <div id="sleep-fade" hidden><p id="sleep-caption"></p></div>
 
   <!-- Einstellungen -->
   <div id="settings-panel" class="overlay" hidden>

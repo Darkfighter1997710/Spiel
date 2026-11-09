@@ -58,7 +58,8 @@ async function boot() {
   const { THREE, source } = await loadThree();
   const [
     { createWorld }, { PlayerPhysics, PLAYER }, { TouchControls }, { createArms },
-    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD },
+    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD, SLEEP_POSE, distanceToBed },
+    { SleepEvent },
   ] = await Promise.all([
     import('./js/world.js'),
     import('./js/physics.js'),
@@ -69,6 +70,7 @@ async function boot() {
     import('./js/dialogue.js'),
     import('./js/dialogue-ui.js'),
     import('./js/layout.js'),
+    import('./js/sleep-event.js'),
   ]);
 
   const settings = loadSettings();
@@ -126,6 +128,18 @@ async function boot() {
     onChoose: (i) => dialogue.choose(i),
   });
   const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  // Schlafen: Nach dem Gespräch erscheint am Bett der Knopf „Schlafen“. Danach wird es durch die Sonne heller
+  // (Ablauf: sleep-event.js, Licht: world.setDaylight).
+  const sleep = new SleepEvent();
+  const btnSleep = $('btn-sleep'), sleepHint = $('sleep-hint'), sleepFade = $('sleep-fade'), sleepCaption = $('sleep-caption');
+  let sleepBtnShown = false, sleepHintShown = false, sleepHintLeft = 8;   // Hinweis erscheint maximal 8 Sekunden lang
+  let shownFade = -1, shownCaption = null, shownDaylight = -1, shownSleeping = false;
+  btnSleep.addEventListener('click', () => {
+    if (!sleepBtnShown || !sleep.start()) return;
+    controls.reset();
+    btnSleep.hidden = true; sleepBtnShown = false;
+  });
 
   const physics = new PlayerPhysics(world.colliders, world.bounds, world.spawn);
   let yaw = world.spawn.yaw || 0;
@@ -237,8 +251,17 @@ async function boot() {
     const offX = Math.cos(cam.phase) * 0.02 * cam.amp;
     const roll = Math.cos(cam.phase) * 0.006 * cam.amp;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw);   // "rechts" in Blickrichtung
-    camera.position.set(physics.x + rx * offX, cam.eye + offY, physics.z + rz * offX);
-    camera.rotation.set(pitch, yaw, roll);
+    let cx = physics.x + rx * offX, cy = cam.eye + offY, cz = physics.z + rz * offX;
+    let camYaw = yaw, camPitch = pitch, camRoll = roll;
+    const lie = sleep.lying;   // 0 = stehen, 1 = Kopf auf dem Kissen (Schlafen: Kamera blendet dazwischen)
+    if (lie > 0) {
+      cx += (SLEEP_POSE.x - cx) * lie; cy += (SLEEP_POSE.y - cy) * lie; cz += (SLEEP_POSE.z - cz) * lie;
+      camYaw = yaw + wrapAngle(SLEEP_POSE.yaw - yaw) * lie;
+      camPitch = pitch + (SLEEP_POSE.pitch - pitch) * lie;
+      camRoll = roll * (1 - lie);
+    }
+    camera.position.set(cx, cy, cz);
+    camera.rotation.set(camPitch, camYaw, camRoll);
 
     const wantFov = 72 + (sprinting ? 5 : 0);
     cam.fov += (wantFov - cam.fov) * (1 - Math.exp(-dt * 6));
@@ -271,7 +294,13 @@ async function boot() {
         else dialogueUI.render(dialogue);
       }
 
-      if (guardEvent.inputLocked) {
+      sleep.update(dt, true);
+
+      if (sleep.active) {
+        // Schlafen: keine Steuerung, die Figur bleibt stehen, die Kamera liegt im Bett
+        controls.consumeLook(); controls.consumeJump(); controls.reset();
+        physics.setInput(0, 0, false, yaw);
+      } else if (guardEvent.inputLocked) {
         // Gespräch: keine Steuerung, die Kamera dreht sich sanft zum Wärter
         controls.consumeLook(); controls.consumeJump(); controls.reset();
         physics.setInput(0, 0, false, yaw);
@@ -321,6 +350,30 @@ async function boot() {
         attention: guardEvent.state === 'arrive' || guardEvent.state === 'talk',
         time: now / 1000, lookYaw, lookPitch,
       });
+    }
+
+    // Schlafen: Knopf/Hinweis am Bett, Schwarzblende, Tageslicht
+    {
+      const canSleep = active && guardEvent.done && !sleep.active && !sleep.done && !dialogueActive;
+      const near = canSleep && distanceToBed(physics.x, physics.z) <= SLEEP_POSE.reach;
+      if (near !== sleepBtnShown) { sleepBtnShown = near; btnSleep.hidden = !near; }
+      const wantHint = canSleep && !near && sleepHintLeft > 0;
+      if (wantHint) sleepHintLeft -= dt;
+      if (wantHint !== sleepHintShown) { sleepHintShown = wantHint; sleepHint.hidden = !wantHint; }
+
+      const f = sleep.fade;
+      if (f !== shownFade) {
+        shownFade = f;
+        sleepFade.hidden = f <= 0.001;
+        sleepFade.style.opacity = String(f);
+      }
+      if (sleep.caption !== shownCaption) { shownCaption = sleep.caption; sleepCaption.textContent = sleep.caption; }
+      if (sleep.active !== shownSleeping) {
+        shownSleeping = sleep.active;
+        if (sleep.active) $('hud').classList.add('sleeping'); else $('hud').classList.remove('sleeping');
+      }
+      if (sleep.daylight !== shownDaylight) { shownDaylight = sleep.daylight; world.setDaylight(sleep.daylight); }
+      arms.group.visible = !(sleep.lying > 0.3);   // im Bett liegend sieht man die Arme nicht
     }
 
     updateCamera(dt);
