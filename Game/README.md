@@ -29,6 +29,14 @@ dynamischer Joystick · Kamera per Wischen · Gehen · Sprinten · Springen · P
 * Zeiten in `js/sleep-event.js` (`SLEEP`), Helligkeit der Sonne und des Tageslichts in `js/world.js` (`SUN_INTENSITY`,
   `DAY_AMBIENT`).
 
+## Wenn die Zelle nicht sichtbar ist (nur die Arme)
+
+1. Auf dem Startbildschirm unten steht die **Versionsnummer** (jetzt 0.4.2). Steht dort etwas anderes, lädt dein Browser alte
+   Dateien: Seite neu laden, notfalls im Chrome-Menü die Website-Daten der Seite löschen.
+2. Einstellungen (Regler-Symbol oben rechts) → **Diagnose-Anzeige** einschalten. Oben links erscheinen Zahlen und Fehlermeldungen.
+   Mit den drei Knöpfen „Schatten“, „Nebel“, „Testlicht“ lässt sich ausprobieren, was die Zelle sichtbar macht.
+3. Einen Screenshot der Anzeige schicken (zeigt auch die Grafikkarte und Fehlermeldungen).
+
 ## Steuerung
 
 | Aktion | Bedienung |

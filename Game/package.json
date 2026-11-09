@@ -1,11 +1,11 @@
 {
   "name": "verlies-3d-abenteuer",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "3D-Abenteuerspiel (Three.js) – Phase 1: Gefängniszelle, Wärter, Schlafen",
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node tests/physics.test.js && node tests/controls.test.js && node tests/arms.test.js && node tests/dialogue.test.js && node tests/guard-event.test.js && node tests/guard.test.js && node tests/sleep-event.test.js && node tests/build.smoke.test.js && node tests/game.integration.test.js",
+    "test": "node tests/physics.test.js && node tests/controls.test.js && node tests/arms.test.js && node tests/dialogue.test.js && node tests/guard-event.test.js && node tests/guard.test.js && node tests/sleep-event.test.js && node tests/debug.test.js && node tests/build.smoke.test.js && node tests/game.integration.test.js",
     "prepare-web": "node scripts/prepare-web.js",
     "start": "python3 -m http.server 8080"
   }

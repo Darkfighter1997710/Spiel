@@ -5,7 +5,7 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 
 ## Stand
 
-* **Version 0.4.1:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
+* **Version 0.4.2:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
   Gehen/Sprinten/Springen, Physik und Kollisionen, symmetrische Wände, **Wärter-Auftritt mit Gespräch**
   (nach 15 s Spielzeit; er kündigt die Hinrichtung für morgen an und schickt den Spieler schlafen),
   **Schlafen im Bett mit Sonnenaufgang** (danach ist die Zelle durch das Fenster hell).
@@ -37,6 +37,7 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 | `js/arms.js` | `createArms`: Arme und Hände an der Kamera samt Animation |
 | `js/guard-event.js` | `GuardEvent`: Zeitplan des Wärter-Auftritts (Zustandsautomat, **ohne Three.js**, testbar) |
 | `js/sleep-event.js` | `SleepEvent`: Ablauf „Schlafen“ (Zustandsautomat, **ohne Three.js**, testbar): Schwarzblende, liegen, aufwachen, Tageslicht |
+| `js/debug.js` | Diagnose-Anzeige: Fehlersammler (`captureErrors`), Grafikkartenname, Textaufbereitung (`formatDebug`); ohne Three.js, testbar |
 | `js/guard.js` | `createGuard`: Wärter-Figur aus einfachen Formen samt Animation (Gehen, Kopf folgt Spieler, Sprechen) |
 | `js/dialogue.js` | Gesprächstext (`GUARD_DIALOGUE`), `validateDialogue`, `DialogueRunner` (Schreibmaschine, Antippen, Antworten); **ohne Anzeige**, testbar |
 | `js/dialogue-ui.js` | zeigt ein Gespräch am Bildschirm (Textfeld, Antwort-Knöpfe) |
@@ -91,6 +92,17 @@ dem Start, der ganze Auftritt dauert je nach Lesetempo ca. 30–60 s.
 * **Fenster:** Es ist nur eine bemalte Fläche in der massiven Rückwand (kein echtes Loch), deshalb sitzt die Sonne im Raum
   vor der Wand. Wer ein echtes Loch/Schatten der Gitterstäbe möchte, muss Wand und Schattenberechnung (statisch,
   `shadowMap.autoUpdate = false`) anpassen.
+
+## Version, Zwischenspeicher und Diagnose
+
+* **Versionsnummer** steht an drei Stellen und muss übereinstimmen (der Gesamtspiel-Test prüft es): `package.json`, `VERSION` in
+  `main.js`, `?v=…` an `style.css` und `main.js` in `index.html`. `main.js` hängt `?v=VERSION` an alle Modul-Adressen, damit der
+  Browser (GitHub Pages: bis zu 10 Minuten Zwischenspeicher) nach einem Update nicht alte und neue Dateien mischt. **Bei jeder
+  Lieferung hochzählen.** Auf dem Startbildschirm steht unten „Version … · Three.js r… · lokal/online geladen“.
+* **Diagnose-Anzeige** (Einstellungen → „Diagnose-Anzeige“): oben links Version, Grafikkarte, Zeichenaufrufe/Dreiecke je Durchgang
+  (Welt, Arme), Programme/Texturen, Grenzen der Grafikkarte, Kameraposition, Fehler und Warnungen von Three.js (z. B. „Shader
+  Error“). Dazu drei Test-Schalter: **Schatten** aus, **Nebel** aus, **Testlicht** an (sehr helles Grundlicht). Gedacht, um zu
+  finden, warum die Zelle nicht sichtbar ist (Arme leuchten selbst und bleiben sichtbar, auch wenn die Welt schwarz bleibt).
 
 ## Koordinaten und Einheiten
 

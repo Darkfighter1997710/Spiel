@@ -50,10 +50,15 @@ export class PerspectiveCamera {
 export class SpotLight { constructor() { const g = generic('spot'); globalThis.__sun = g; return g; } }
 export class Scene {
   constructor() { this.background = null; this.fog = null; }
-  add() {}
+  add() {} traverse() {}
 }
 export class WebGLRenderer {
-  constructor() { this.capabilities = { getMaxAnisotropy: () => 8 }; this.shadowMap = {}; }
+  constructor() {
+    this.capabilities = { getMaxAnisotropy: () => 8, maxTextures: 16, maxTextureSize: 4096, maxFragmentUniforms: 221, maxVaryings: 15, precision: 'highp' };
+    this.shadowMap = {};
+    this.info = { render: { calls: 12, triangles: 345 }, programs: [1, 2, 3], memory: { textures: 4, geometries: 5 } };
+  }
+  getContext() { return { getExtension: () => null, getParameter: () => 'Testgrafik', RENDERER: 1 }; }
   setPixelRatio() {} setSize() {} compile() {} setClearColor() {} clear() { globalThis.__renders.push('C'); }
   clearDepth() { globalThis.__renders.push('D'); }
   // Wie die echte Bibliothek: Ist eine Hintergrundfarbe an der Szene gesetzt, löscht JEDES render() den Bildschirm
@@ -125,6 +130,15 @@ async function frames(n) { for (let i = 0; i < n; i++) { const cb = rafCb; rafCb
 const E = (id) => elements[id];
 const lastCam = () => globalThis.__camLog[globalThis.__camLog.length - 1];
 
+// Die Versionsnummer muss in package.json, main.js und index.html übereinstimmen (Schutz vor veraltetem Browser-Zwischenspeicher)
+{
+  const pkgVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
+  const mainVersion = (readFileSync(join(root, 'main.js'), 'utf8').match(/const VERSION = '([^']+)'/) || [])[1];
+  const htmlVersions = [...indexHtml.matchAll(/\?v=([0-9.]+)/g)].map((m) => m[1]);
+  ok(pkgVersion === mainVersion, `Versionsnummer: package.json ${pkgVersion} ≠ main.js ${mainVersion}`);
+  ok(htmlVersions.length === 2 && htmlVersions.every((v) => v === pkgVersion), `Versionsnummer in index.html passt nicht: ${htmlVersions.join(', ')} (erwartet ${pkgVersion})`);
+}
+
 try {
   await import(pathToFileURL(join(tmp, 'main.js')).href);   // das Spiel "starten"
   for (let i = 0; i < 6; i++) await tick();
@@ -143,7 +157,23 @@ try {
   ok(JSON.stringify(r) === JSON.stringify(['C', 0, 'D', 1]), `Zeichenreihenfolge falsch: ${JSON.stringify(r)}`);
   ok(!globalThis.__renders.includes('F'), 'Szenen-Hintergrundfarbe gesetzt: der zweite Durchgang (Arme) löscht die Welt weg (nur Arme sichtbar)');
 
+  ok(/^Version \d+\.\d+\.\d+ · Three\.js/.test(E('engine-info').textContent), `Startbildschirm zeigt keine Versionsnummer: "${E('engine-info').textContent}"`);
+
+  // Diagnose-Anzeige: aus; einschalten zeigt Zahlen; Test-Schalter ändern Renderer/Welt ohne Fehler
+  ok(E('debug-box').hidden === true, 'Diagnose-Anzeige ist ohne Einschalten sichtbar');
   E('start-btn').fire('click');
+  E('diag').checked = true; E('diag').fire('change');
+  ok(E('debug-box').hidden === false, 'Diagnose-Anzeige lässt sich nicht einschalten');
+  await frames(40);
+  const dbgText = E('debug-text').textContent;
+  ok(/Welt: 12 Aufrufe, 345 Dreiecke/.test(dbgText) && /Arme: 12 Aufrufe/.test(dbgText) && /Testgrafik/.test(dbgText) && /Version \d/.test(dbgText), `Diagnose-Text unvollständig:\n${dbgText}`);
+  ok(!dbgText.includes('undefined') && !dbgText.includes('NaN'), `Diagnose-Text enthält ungültige Werte:\n${dbgText}`);
+  E('dbg-shadow').fire('click'); E('dbg-fog').fire('click'); E('dbg-bright').fire('click');
+  ok(E('dbg-shadow').textContent === 'Schatten: aus' && E('dbg-fog').textContent === 'Nebel: aus' && E('dbg-bright').textContent === 'Testlicht: an', 'Test-Schalter ändern ihre Beschriftung nicht');
+  E('dbg-shadow').fire('click'); E('dbg-fog').fire('click'); E('dbg-bright').fire('click');
+  ok(E('dbg-shadow').textContent === 'Schatten: an' && E('dbg-bright').textContent === 'Testlicht: aus', 'Test-Schalter lassen sich nicht zurücknehmen');
+  E('diag').checked = false; E('diag').fire('change');
+  ok(E('debug-box').hidden === true, 'Diagnose-Anzeige lässt sich nicht ausschalten');
   ok(E('start-screen').hidden === true && E('hud').hidden === false, 'Start blendet Menü nicht aus');
 
   // Joystick links nach oben + Sprint halten -> gegen die Tür laufen

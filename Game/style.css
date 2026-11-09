@@ -187,3 +187,21 @@ html, body {
 #sleep-caption { margin: 0; font-size: 22px; font-weight: 300; letter-spacing: 0.12em; color: var(--ink); text-align: center; padding: 0 24px; }
 /* beim Schlafen: Joystick und Buttons ausblenden */
 .sleeping .round-btn, .sleeping #joystick, .sleeping #btn-sleep, .sleeping #sleep-hint { display: none; }
+
+/* ---------- Diagnose-Anzeige ---------- */
+#debug-box {
+  position: fixed; z-index: 8; left: 8px;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  max-width: min(64vw, 560px); pointer-events: none;
+}
+#debug-text {
+  margin: 0; padding: 6px 8px; border-radius: 8px;
+  font: 10.5px/1.35 ui-monospace, Menlo, Consolas, monospace; color: #b6ffb0;
+  background: rgba(0, 0, 0, 0.66); white-space: pre-wrap; word-break: break-word;
+}
+#debug-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; pointer-events: auto; }
+.dbg-btn {
+  min-height: 38px; padding: 8px 10px; border-radius: 8px;
+  font: 600 12px system-ui, sans-serif; color: #fff;
+  background: rgba(30, 60, 30, 0.85); border: 1px solid #7c7; touch-action: manipulation;
+}

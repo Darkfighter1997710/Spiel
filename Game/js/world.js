@@ -21,7 +21,8 @@ export function createWorld(THREE, renderer) {
   // KEIN scene.background: Eine Hintergrundfarbe an der Szene löscht bei jedem render()-Aufruf den ganzen Bildschirm, auch bei
   // autoClear = false. Das Spiel zeichnet aber zweimal pro Bild (Welt, dann Arme) – der zweite Durchgang würde die Welt
   // wegwischen (man sähe nur die Arme). Stattdessen setzt main.js die Löschfarbe des Renderers (world.background).
-  scene.fog = new THREE.FogExp2(0x050302, 0.06);
+  const fog = new THREE.FogExp2(0x050302, 0.06);
+  scene.fog = fog;   // eigene Referenz: die Diagnose kann scene.fog zeitweise abschalten (null)
 
   const group = new THREE.Group();
   scene.add(group);
@@ -430,18 +431,20 @@ export function createWorld(THREE, renderer) {
     fog: new THREE.Color(0x2b2620),
   };
   let daylight = 0;
+  let debugBright = false;   // nur für die Diagnose-Anzeige: sehr helles Grundlicht, um zu prüfen, ob die Zelle überhaupt gezeichnet wird
   function setDaylight(amount) {
     const d = Math.max(0, Math.min(1, Number.isFinite(amount) ? amount : 0));
     daylight = d;
     sunLight.intensity = SUN_INTENSITY * d;
-    hemi.intensity = AMBIENT_INTENSITY + (DAY_AMBIENT - AMBIENT_INTENSITY) * d;
+    hemi.intensity = debugBright ? 25 : AMBIENT_INTENSITY + (DAY_AMBIENT - AMBIENT_INTENSITY) * d;
     hemi.color.lerpColors(NIGHT.hemiSky, DAY.hemiSky, d);
     hemi.groundColor.lerpColors(NIGHT.hemiGround, DAY.hemiGround, d);
     M.sky.color.lerpColors(NIGHT.sky, DAY.sky, d);
-    scene.fog.color.lerpColors(NIGHT.fog, DAY.fog, d);
+    fog.color.lerpColors(NIGHT.fog, DAY.fog, d);
     dust.material.opacity = 0.45 + 0.25 * d;   // im Sonnenstrahl sieht man den Staub besser
   }
   setDaylight(0);
+  function setDebugBright(on) { debugBright = !!on; setDaylight(daylight); }
 
   // ---------- Animation (Fackelflackern, Staub) ----------
   function update(t) {
@@ -468,6 +471,7 @@ export function createWorld(THREE, renderer) {
     background: 0x030201,   // Farbe hinter allem (Löschfarbe des Renderers, siehe oben)
     setEndDoor,
     setDaylight,
+    setDebugBright,
     get daylight() { return daylight; },
     update,
   };

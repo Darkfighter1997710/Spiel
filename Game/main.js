@@ -4,6 +4,11 @@
 
 const $ = (id) => document.getElementById(id);
 
+// Versionsnummer: gleich wie in package.json und in index.html (?v=…). Sie hängt an allen Modul-Adressen, damit der Browser nach
+// einem Update nie veraltete Dateien aus dem Zwischenspeicher nimmt (sonst laufen alte und neue Dateien gemischt).
+const VERSION = '0.4.2';
+const Q = `?v=${VERSION}`;
+
 // ---------- Browser-Gesten unterdrücken (Zoomen, Kontextmenü, Doppeltipp, Scrollen) ----------
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -14,7 +19,7 @@ document.addEventListener('touchmove', (e) => {
 
 // ---------- Einstellungen (werden im Browser gespeichert) ----------
 const SETTINGS_KEY = 'verlies.settings.v1';
-const DEFAULTS = { sens: 1, bright: 1, invert: false };
+const DEFAULTS = { sens: 1, bright: 1, invert: false, diag: false };
 
 function loadSettings() {
   try {
@@ -54,24 +59,26 @@ boot().catch((err) => {
 });
 
 async function boot() {
-  const { loadThree } = await import('./js/loader.js');
+  const { loadThree } = await import(`./js/loader.js${Q}`);
   const { THREE, source } = await loadThree();
   const [
     { createWorld }, { PlayerPhysics, PLAYER }, { TouchControls }, { createArms },
     { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD, SLEEP_POSE, distanceToBed },
-    { SleepEvent },
+    { SleepEvent }, { captureErrors, formatDebug, gpuName },
   ] = await Promise.all([
-    import('./js/world.js'),
-    import('./js/physics.js'),
-    import('./js/controls.js'),
-    import('./js/arms.js'),
-    import('./js/guard.js'),
-    import('./js/guard-event.js'),
-    import('./js/dialogue.js'),
-    import('./js/dialogue-ui.js'),
-    import('./js/layout.js'),
-    import('./js/sleep-event.js'),
+    import(`./js/world.js${Q}`),
+    import(`./js/physics.js${Q}`),
+    import(`./js/controls.js${Q}`),
+    import(`./js/arms.js${Q}`),
+    import(`./js/guard.js${Q}`),
+    import(`./js/guard-event.js${Q}`),
+    import(`./js/dialogue.js${Q}`),
+    import(`./js/dialogue-ui.js${Q}`),
+    import(`./js/layout.js${Q}`),
+    import(`./js/sleep-event.js${Q}`),
+    import(`./js/debug.js${Q}`),
   ]);
+  const errorLines = captureErrors();   // Fehler/Warnungen der Grafik sammeln (für die Diagnose-Anzeige)
 
   const settings = loadSettings();
 
@@ -185,6 +192,59 @@ async function boot() {
   });
   invertIn.addEventListener('change', () => { settings.invert = invertIn.checked; saveSettings(settings); });
 
+  // Diagnose-Anzeige: zeigt, was gezeichnet wird, plus drei Test-Schalter (Schatten, Nebel, helles Testlicht)
+  const diagIn = $('diag');
+  diagIn.checked = settings.diag;
+  const applyDiag = () => { $('debug-box').hidden = !settings.diag; };
+  diagIn.addEventListener('change', () => { settings.diag = diagIn.checked; saveSettings(settings); applyDiag(); });
+  applyDiag();
+  const dbg = { shadow: true, fog: true, bright: false, worldStat: { calls: 0, tris: 0 }, armStat: { calls: 0, tris: 0 }, fps: 0, timer: 99 };
+  const fogObject = world.scene.fog;
+  const refreshMaterials = () => world.scene.traverse((o) => {
+    const m = o.material;
+    if (m) (Array.isArray(m) ? m : [m]).forEach((mm) => { mm.needsUpdate = true; });
+  });
+  const dbgLabel = (id, name, on, onText = 'an', offText = 'aus') => { $(id).textContent = `${name}: ${on ? onText : offText}`; };
+  $('dbg-shadow').addEventListener('click', () => {
+    dbg.shadow = !dbg.shadow;
+    renderer.shadowMap.enabled = dbg.shadow;
+    if (dbg.shadow) renderer.shadowMap.needsUpdate = true;
+    refreshMaterials(); dbgLabel('dbg-shadow', 'Schatten', dbg.shadow);
+  });
+  $('dbg-fog').addEventListener('click', () => {
+    dbg.fog = !dbg.fog;
+    world.scene.fog = dbg.fog ? fogObject : null;
+    refreshMaterials(); dbgLabel('dbg-fog', 'Nebel', dbg.fog);
+  });
+  $('dbg-bright').addEventListener('click', () => {
+    dbg.bright = !dbg.bright;
+    world.setDebugBright(dbg.bright); dbgLabel('dbg-bright', 'Testlicht', dbg.bright);
+  });
+  const readPass = () => {
+    const r = renderer.info && renderer.info.render;
+    return r ? { calls: r.calls, tris: r.triangles } : { calls: '?', tris: '?' };
+  };
+  function updateDebug(rawDt) {
+    dbg.fps += ((1 / Math.max(rawDt, 0.001)) - dbg.fps) * 0.05;
+    dbg.timer += rawDt;
+    if (dbg.timer < 0.4) return;
+    dbg.timer = 0;
+    const info = renderer.info || {}, caps = renderer.capabilities || {};
+    $('debug-text').textContent = formatDebug({
+      version: VERSION, three: THREE.REVISION, source, gpu: dbg.gpu || (dbg.gpu = gpuName(renderer)),
+      width: window.innerWidth, height: window.innerHeight, pixelRatio, fps: dbg.fps,
+      world: dbg.worldStat, arms: dbg.armStat,
+      programs: info.programs ? info.programs.length : '?',
+      textures: info.memory ? info.memory.textures : '?', geometries: info.memory ? info.memory.geometries : '?',
+      caps: {
+        maxTextures: caps.maxTextures, maxTextureSize: caps.maxTextureSize, maxFragmentUniforms: caps.maxFragmentUniforms,
+        maxVaryings: caps.maxVaryings, precision: caps.precision,
+      },
+      cam: { x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw, pitch },
+      daylight: world.daylight, exposure: renderer.toneMappingExposure, messages: errorLines,
+    });
+  }
+
   const openSettings = () => { settingsOpen = true; controls.reset(); $('settings-panel').hidden = false; };
   const closeSettings = () => { settingsOpen = false; $('settings-panel').hidden = true; };
   $('btn-settings').addEventListener('click', openSettings);
@@ -216,7 +276,7 @@ async function boot() {
   // ---------- Start ----------
   let started = false;
   const startBtn = $('start-btn');
-  $('engine-info').textContent = `Three.js r${THREE.REVISION} · ${source} geladen`;
+  $('engine-info').textContent = `Version ${VERSION} · Three.js r${THREE.REVISION} · ${source} geladen`;
   camera.layers.set(1); renderer.compile(world.scene, camera);   // Shader vorab übersetzen (verhindert Ruckler beim ersten Bild)
   camera.layers.set(0); renderer.compile(world.scene, camera);
   startBtn.textContent = 'Spiel starten';
@@ -385,8 +445,10 @@ async function boot() {
     world.update(now / 1000);
     renderer.clear();
     camera.layers.set(0); renderer.render(world.scene, camera);   // 1. Welt
+    if (settings.diag) dbg.worldStat = readPass();
     renderer.clearDepth();
     camera.layers.set(1); renderer.render(world.scene, camera);   // 2. Arme (immer vor der Welt)
+    if (settings.diag) { dbg.armStat = readPass(); updateDebug(rawDt); }
 
     // Falls das Gerät zu langsam ist, die Auflösung schrittweise verringern (nie wieder erhöhen)
     if (active) {

@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="assets/icons/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=0.4.2">
 </head>
 <body>
   <canvas id="game"></canvas>
@@ -38,6 +38,16 @@
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
       <span>Schlafen</span>
     </button>
+
+    <!-- Diagnose-Anzeige (Einstellungen → Diagnose-Anzeige) -->
+    <div id="debug-box" hidden>
+      <pre id="debug-text"></pre>
+      <div id="debug-tools">
+        <button id="dbg-shadow" class="dbg-btn" type="button">Schatten: an</button>
+        <button id="dbg-fog" class="dbg-btn" type="button">Nebel: an</button>
+        <button id="dbg-bright" class="dbg-btn" type="button">Testlicht: aus</button>
+      </div>
+    </div>
 
     <button id="btn-settings" class="icon-btn" type="button" aria-label="Einstellungen">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
@@ -71,6 +81,10 @@
       <label class="row check">
         <input id="invert" type="checkbox">
         <span>Blick nach oben/unten umkehren</span>
+      </label>
+      <label class="row check">
+        <input id="diag" type="checkbox">
+        <span>Diagnose-Anzeige (bei Darstellungsproblemen)</span>
       </label>
       <div class="actions">
         <button id="btn-fullscreen" class="btn" type="button" hidden>Vollbild</button>
@@ -109,6 +123,6 @@
     </div>
   </div>
 
-  <script type="module" src="main.js"></script>
+  <script type="module" src="main.js?v=0.4.2"></script>
 </body>
 </html>
