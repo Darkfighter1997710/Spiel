@@ -103,6 +103,7 @@ async function boot() {
 
   // ---------- Welt, Kamera, Physik ----------
   const world = createWorld(THREE, renderer);
+  renderer.setClearColor(world.background, 1);   // Hintergrund über die Löschfarbe (nicht scene.background, siehe world.js)
   const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 40);
   camera.rotation.order = 'YXZ';
 

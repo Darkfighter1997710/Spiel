@@ -18,7 +18,9 @@ export function createWorld(THREE, renderer) {
   const T = createTextures(THREE, renderer);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x030201);
+  // KEIN scene.background: Eine Hintergrundfarbe an der Szene löscht bei jedem render()-Aufruf den ganzen Bildschirm, auch bei
+  // autoClear = false. Das Spiel zeichnet aber zweimal pro Bild (Welt, dann Arme) – der zweite Durchgang würde die Welt
+  // wegwischen (man sähe nur die Arme). Stattdessen setzt main.js die Löschfarbe des Renderers (world.background).
   scene.fog = new THREE.FogExp2(0x050302, 0.06);
 
   const group = new THREE.Group();
@@ -463,6 +465,7 @@ export function createWorld(THREE, renderer) {
     bounds: BOUNDS,
     spawn: SPAWN,
     textures: T,
+    background: 0x030201,   // Farbe hinter allem (Löschfarbe des Renderers, siehe oben)
     setEndDoor,
     setDaylight,
     get daylight() { return daylight; },

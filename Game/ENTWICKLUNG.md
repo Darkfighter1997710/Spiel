@@ -5,7 +5,7 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 
 ## Stand
 
-* **Version 0.4.0:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
+* **Version 0.4.1:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
   Gehen/Sprinten/Springen, Physik und Kollisionen, symmetrische Wände, **Wärter-Auftritt mit Gespräch**
   (nach 15 s Spielzeit; er kündigt die Hinrichtung für morgen an und schickt den Spieler schlafen),
   **Schlafen im Bett mit Sonnenaufgang** (danach ist die Zelle durch das Fenster hell).
@@ -114,6 +114,10 @@ Tür in der vorderen Wand (z = −2,2), Gang dahinter nur sichtbar. Spawn (0,4 /
 * **Arme:** hängen an der Kamera (Kamera ist Kind der Szene), liegen auf **Ebene 1** und werden in einem **zweiten
   Zeichendurchgang** nach `clearDepth()` gezeichnet, damit sie nie in Wände ragen. Lichter müssen deshalb auch auf Ebene 1
   aktiv sein (`light.layers.enable(1)`). Zeichenreihenfolge pro Bild: `clear` → Welt (Ebene 0) → `clearDepth` → Arme (Ebene 1).
+  **Kein `scene.background` verwenden!** Eine Hintergrundfarbe an der Szene löscht bei *jedem* `render()` den ganzen
+  Bildschirm (auch mit `autoClear = false`); der zweite Durchgang (Arme) würde die Welt wegwischen, man sähe nur die Arme
+  im Dunkeln. Der Hintergrund kommt deshalb aus `renderer.setClearColor(world.background)`. Der Gesamtspiel-Test
+  (`game.integration.test.js`) simuliert dieses Verhalten und schlägt an, wenn wieder ein Szenen-Hintergrund gesetzt wird.
   Linker Arm = gespiegelter rechter Arm (`scale.x = -1` am Halter). Animation aus der Kamera-Laufphase (`cam.phase`).
 * **Steuerung:** Pointer-Events mit Mehrfingerverfolgung. Links = Joystick (erscheint am Berührpunkt, Mittelpunkt fix, Totzone
   10 %), rechts = Kamera (0,0045 rad/Pixel × Empfindlichkeit), Neigung auf ±1,45 rad begrenzt.

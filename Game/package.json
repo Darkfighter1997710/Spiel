@@ -1,6 +1,6 @@
 {
   "name": "verlies-3d-abenteuer",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "3D-Abenteuerspiel (Three.js) – Phase 1: Gefängniszelle, Wärter, Schlafen",
   "type": "module",
   "private": true,

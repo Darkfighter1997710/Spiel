@@ -17,7 +17,7 @@ cpSync(root, tmp, { recursive: true, filter: (src) => !src.includes('node_module
 const sources = [join(tmp, 'main.js'), ...readdirSync(join(tmp, 'js')).map((f) => join(tmp, 'js', f))];
 const names = new Set();
 for (const f of sources) for (const m of readFileSync(f, 'utf8').matchAll(/THREE\.([A-Za-z0-9_]+)/g)) names.add(m[1]);
-const special = new Set(['PerspectiveCamera', 'WebGLRenderer', 'REVISION', 'SpotLight']);
+const special = new Set(['PerspectiveCamera', 'WebGLRenderer', 'REVISION', 'SpotLight', 'Scene']);
 const isConst = (n) => /(Mapping|ColorSpace|Blending|Wrapping|ShadowMap)$/.test(n);
 let stub = `
 const generic = (name) => {
@@ -48,11 +48,20 @@ export class PerspectiveCamera {
 }
 // Sonnenlicht: der Test merkt sich das Objekt, um die Helligkeit lesen zu können
 export class SpotLight { constructor() { const g = generic('spot'); globalThis.__sun = g; return g; } }
+export class Scene {
+  constructor() { this.background = null; this.fog = null; }
+  add() {}
+}
 export class WebGLRenderer {
   constructor() { this.capabilities = { getMaxAnisotropy: () => 8 }; this.shadowMap = {}; }
-  setPixelRatio() {} setSize() {} compile() {} clear() { globalThis.__renders.push('C'); }
+  setPixelRatio() {} setSize() {} compile() {} setClearColor() {} clear() { globalThis.__renders.push('C'); }
   clearDepth() { globalThis.__renders.push('D'); }
-  render(scene, camera) { globalThis.__renders.push(camera.layers.n); }
+  // Wie die echte Bibliothek: Ist eine Hintergrundfarbe an der Szene gesetzt, löscht JEDES render() den Bildschirm
+  // (auch bei autoClear = false). Das Spiel zeichnet zweimal pro Bild (Welt, Arme) – der zweite Durchgang würde die Welt wegwischen.
+  render(scene, camera) {
+    if (scene.background !== null && scene.background !== undefined) globalThis.__renders.push('F');
+    globalThis.__renders.push(camera.layers.n);
+  }
   addEventListener() {}
 }
 `;
@@ -132,6 +141,7 @@ try {
   // Pro Bild: zuerst löschen, dann Welt (Ebene 0), dann Tiefe löschen, dann Arme (Ebene 1)
   const r = globalThis.__renders.slice(-4);
   ok(JSON.stringify(r) === JSON.stringify(['C', 0, 'D', 1]), `Zeichenreihenfolge falsch: ${JSON.stringify(r)}`);
+  ok(!globalThis.__renders.includes('F'), 'Szenen-Hintergrundfarbe gesetzt: der zweite Durchgang (Arme) löscht die Welt weg (nur Arme sichtbar)');
 
   E('start-btn').fire('click');
   ok(E('start-screen').hidden === true && E('hud').hidden === false, 'Start blendet Menü nicht aus');
