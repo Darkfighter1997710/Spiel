@@ -1,4 +1,4 @@
-// controls.mjs – Touch-Steuerung: dynamischer Joystick (links), Kamera-Wischen (rechts),
+// controls.js – Touch-Steuerung: dynamischer Joystick (links), Kamera-Wischen (rechts),
 // Buttons Springen und Sprinten. Mehrere Finger gleichzeitig sind möglich.
 // Zusätzlich (nur zum Testen am Computer): WASD/Pfeile, Leertaste, Shift.
 

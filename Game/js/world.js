@@ -1,10 +1,10 @@
-// world.mjs – baut die Gefängniszelle (Wände, Möbel, Gittertür, Fackel, Licht).
-// Alle Maße kommen aus layout.mjs, damit Optik und Kollisionen übereinstimmen.
+// world.js – baut die Gefängniszelle (Wände, Möbel, Gittertür, Fackel, Licht).
+// Alle Maße kommen aus layout.js, damit Optik und Kollisionen übereinstimmen.
 
-import { createTextures } from './textures.mjs';
+import { createTextures } from './textures.js';
 import {
-  ROOM, DOOR, CORRIDOR, BED, TABLE, STOOL, BUCKET, BOUNDS, SPAWN, buildColliders,
-} from './layout.mjs';
+  ROOM, DOOR, CORRIDOR, BED, TABLE, STOOL, BUCKET, BOUNDS, SPAWN, END_Z, END_DOOR, buildColliders,
+} from './layout.js';
 
 // ---- Licht-Einstellungen (hier lässt sich die Stimmung anpassen) ----
 const TORCH_INTENSITY = 38;     // Helligkeit der Fackel
@@ -22,6 +22,8 @@ export function createWorld(THREE, renderer) {
   scene.add(group);
 
   const W = ROOM.halfW, D = ROOM.halfD, H = ROOM.height, WT = ROOM.wall;
+  const WALL_TS = 2.1;   // 7 Steinreihen à 0,3 m -> genau 10 Reihen bis zur Decke
+  const FLOOR_TS = 2.0;
 
   // ---------- Materialien ----------
   const mk = (tex, o = {}) => new THREE.MeshStandardMaterial({
@@ -75,11 +77,26 @@ export function createWorld(THREE, renderer) {
     uv.needsUpdate = true;
   }
 
+  // Texturkoordinaten fest an die Welt binden (Ursprung = Raummitte): Steinreihen liegen an allen
+  // Wänden auf gleicher Höhe, und weil die Steintextur spiegelsymmetrisch ist, sind gegenüberliegende
+  // Wände exakte Spiegelbilder. (Gilt für Stein; Holz & Co. nutzen scaleUV.)
+  function worldUV(g, cx, cy, cz, ts) {
+    const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv;
+    for (let i = 0; i < uv.count; i++) {
+      const x = pos.getX(i) + cx, y = pos.getY(i) + cy, z = pos.getZ(i) + cz;
+      if (Math.abs(nor.getX(i)) > 0.5) uv.setXY(i, z / ts, y / ts);
+      else if (Math.abs(nor.getY(i)) > 0.5) uv.setXY(i, x / ts, z / ts);
+      else uv.setXY(i, x / ts, y / ts);
+    }
+    uv.needsUpdate = true;
+  }
+
   // Quader von minX..maxX usw. (Meter), mit passend skalierter Textur
   function boxMM(minX, maxX, minY, maxY, minZ, maxZ, mat, o = {}) {
     const w = maxX - minX, h = maxY - minY, d = maxZ - minZ;
     const g = new THREE.BoxGeometry(w, h, d);
-    scaleUV(g, w, h, d, o.ts || 2, o.grain);
+    if (o.world) worldUV(g, (minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2, o.world);
+    else scaleUV(g, w, h, d, o.ts || 2, o.grain);
     const m = new THREE.Mesh(g, mat);
     m.position.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
     m.castShadow = o.cast !== undefined ? o.cast : true;
@@ -89,14 +106,14 @@ export function createWorld(THREE, renderer) {
   }
 
   // ---------- Zelle: Boden, Decke, Wände ----------
-  boxMM(-W - WT, W + WT, -0.5, 0, -D - WT, D + WT, M.floor, { ts: 2 });
-  boxMM(-W - WT, W + WT, H, H + 0.5, -D - WT, D + WT, M.ceil, { ts: 2 });
-  boxMM(-W - WT, -W, 0, H, -D - WT, D + WT, M.wall);              // links
-  boxMM(W, W + WT, 0, H, -D - WT, D + WT, M.wall);                // rechts
-  boxMM(-W, W, 0, H, D, D + WT, M.wall);                          // hinten
-  boxMM(-W, -DOOR.halfW, 0, H, -D - WT, -D, M.wall);              // vorne links
-  boxMM(DOOR.halfW, W, 0, H, -D - WT, -D, M.wall);                // vorne rechts
-  boxMM(-DOOR.halfW, DOOR.halfW, DOOR.height, H, -D - WT, -D, M.wall); // Sturz über der Tür
+  boxMM(-W - WT, W + WT, -0.5, 0, -D - WT, D + WT, M.floor, { world: FLOOR_TS });
+  boxMM(-W - WT, W + WT, H, H + 0.5, -D - WT, D + WT, M.ceil, { world: WALL_TS });
+  boxMM(-W - WT, -W, 0, H, -D - WT, D + WT, M.wall, { world: WALL_TS });              // links
+  boxMM(W, W + WT, 0, H, -D - WT, D + WT, M.wall, { world: WALL_TS });                // rechts
+  boxMM(-W, W, 0, H, D, D + WT, M.wall, { world: WALL_TS });                          // hinten
+  boxMM(-W, -DOOR.halfW, 0, H, -D - WT, -D, M.wall, { world: WALL_TS });              // vorne links
+  boxMM(DOOR.halfW, W, 0, H, -D - WT, -D, M.wall, { world: WALL_TS });                // vorne rechts
+  boxMM(-DOOR.halfW, DOOR.halfW, DOOR.height, H, -D - WT, -D, M.wall, { world: WALL_TS }); // Sturz über der Tür
 
   // Deckenbalken
   for (const z of [-1.4, 0, 1.4]) {
@@ -106,16 +123,34 @@ export function createWorld(THREE, renderer) {
   // ---------- Gang hinter der Tür (nur sichtbar, nicht begehbar) ----------
   const CH = CORRIDOR.halfW;
   const zFront = -D - WT;                       // Außenseite der Türwand
-  const zEnd = zFront - CORRIDOR.length;
-  boxMM(-CH - WT, CH + WT, -0.5, 0, zEnd - WT, zFront, M.floor);
-  boxMM(-CH - WT, CH + WT, H, H + 0.5, zEnd - WT, zFront, M.ceil);
-  boxMM(-CH - WT, -CH, 0, H, zEnd - WT, zFront, M.wall);
-  boxMM(CH, CH + WT, 0, H, zEnd - WT, zFront, M.wall);
-  boxMM(-CH, CH, 0, H, zEnd - WT, zEnd, M.wall);
-  // schwere Holztür am Ende des Gangs
-  boxMM(-0.6, 0.6, 0, 2.2, zEnd, zEnd + 0.1, M.wood, { ts: 1, grain: 'y' });
-  boxMM(-0.6, 0.6, 0.45, 0.55, zEnd + 0.1, zEnd + 0.13, M.iron, { ts: 0.5 });
-  boxMM(-0.6, 0.6, 1.65, 1.75, zEnd + 0.1, zEnd + 0.13, M.iron, { ts: 0.5 });
+  const zEnd = END_Z;
+  boxMM(-CH - WT, CH + WT, -0.5, 0, zEnd - WT, zFront, M.floor, { world: FLOOR_TS });
+  boxMM(-CH - WT, CH + WT, H, H + 0.5, zEnd - WT, zFront, M.ceil, { world: WALL_TS });
+  boxMM(-CH - WT, -CH, 0, H, zEnd - WT, zFront, M.wall, { world: WALL_TS });
+  boxMM(CH, CH + WT, 0, H, zEnd - WT, zFront, M.wall, { world: WALL_TS });
+  // Endwand mit Türöffnung; dahinter eine kurze dunkle Nische, aus der der Wärter später kommt
+  const ED = END_DOOR;
+  boxMM(-CH, -ED.halfW, 0, H, zEnd - WT, zEnd, M.wall, { world: WALL_TS });
+  boxMM(ED.halfW, CH, 0, H, zEnd - WT, zEnd, M.wall, { world: WALL_TS });
+  boxMM(-ED.halfW, ED.halfW, ED.height, H, zEnd - WT, zEnd, M.wall, { world: WALL_TS });
+  const alcove = new THREE.Mesh(new THREE.PlaneGeometry(ED.halfW * 2, ED.height), M.black);
+  alcove.position.set(0, ED.height / 2, zEnd - WT + 0.02);
+  group.add(alcove);
+
+  // schwere Holztür am Gangende, links angeschlagen (Drehpunkt = linke Kante), schwingt in den Gang
+  const endDoorPivot = new THREE.Group();
+  endDoorPivot.position.set(-ED.halfW, 0, zEnd + 0.05);
+  group.add(endDoorPivot);
+  const dw = ED.halfW * 2;
+  const doorOpts = { ts: 1, grain: 'y', parent: endDoorPivot, cast: false };
+  boxMM(0, dw, 0, ED.height, -0.05, 0.05, M.wood, doorOpts);
+  boxMM(0.02, dw - 0.02, 0.45, 0.55, 0.05, 0.08, M.iron, { ts: 0.5, parent: endDoorPivot, cast: false });
+  boxMM(0.02, dw - 0.02, 1.65, 1.75, 0.05, 0.08, M.iron, { ts: 0.5, parent: endDoorPivot, cast: false });
+  const doorRing = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.01, 6, 14), M.iron);
+  doorRing.position.set(dw - 0.18, 1.05, 0.1);
+  endDoorPivot.add(doorRing);
+  // amount 0 = zu, 1 = ganz offen (ca. 100 Grad, die Tür schwingt zum Spieler hin)
+  function setEndDoor(amount) { endDoorPivot.rotation.y = -Math.max(0, Math.min(1, amount)) * 1.75; }
 
   // ---------- Gittertür aus dunklem Metall ----------
   {
@@ -258,18 +293,18 @@ export function createWorld(THREE, renderer) {
     }
   }
 
-  // ---------- kleines vergittertes Fenster (hinten) ----------
+  // ---------- kleines vergittertes Fenster (hinten, genau in der Wandmitte) ----------
   {
     const sky = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), M.sky);
-    sky.position.set(0.2, 1.95, D - 0.01);
+    sky.position.set(0, 1.95, D - 0.01);
     sky.rotation.y = Math.PI;
     group.add(sky);
-    boxMM(-0.09, 0.49, 2.3, 2.35, D - 0.08, D, M.wall, { cast: false });
-    boxMM(-0.09, 0.49, 1.55, 1.6, D - 0.1, D, M.wall, { cast: false });
-    boxMM(-0.09, -0.05, 1.55, 2.35, D - 0.08, D, M.wall, { cast: false });
-    boxMM(0.45, 0.49, 1.55, 2.35, D - 0.08, D, M.wall, { cast: false });
+    boxMM(-0.29, 0.29, 2.3, 2.35, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
+    boxMM(-0.29, 0.29, 1.55, 1.6, D - 0.1, D, M.wall, { cast: false, world: WALL_TS });
+    boxMM(-0.29, -0.25, 1.55, 2.35, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
+    boxMM(0.25, 0.29, 1.55, 2.35, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
     const barGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.75, 6);
-    for (const bx of [0.05, 0.2, 0.35]) {
+    for (const bx of [-0.15, 0, 0.15]) {
       const bar = new THREE.Mesh(barGeo, M.iron);
       bar.position.set(bx, 1.95, D - 0.04);
       group.add(bar);
@@ -325,6 +360,7 @@ export function createWorld(THREE, renderer) {
 
   // ---------- Lichter (bewusst wenige!) ----------
   const hemi = new THREE.HemisphereLight(0x4a5a80, 0x2a1d12, AMBIENT_INTENSITY);
+  hemi.layers.enable(1);   // Ebene 1 = Arme (werden in eigenem Durchgang gezeichnet)
   scene.add(hemi);
 
   const torchLight = new THREE.PointLight(0xff9a3c, TORCH_INTENSITY, 0, 2);
@@ -335,6 +371,7 @@ export function createWorld(THREE, renderer) {
   torchLight.shadow.camera.far = 16;
   torchLight.shadow.bias = -0.0006;
   torchLight.shadow.normalBias = 0.03;
+  torchLight.layers.enable(1);
   scene.add(torchLight);
 
   const corridorLight = new THREE.PointLight(0xff8a40, CORRIDOR_INTENSITY, 0, 2);
@@ -345,6 +382,7 @@ export function createWorld(THREE, renderer) {
   corridorLight.shadow.camera.far = 12;
   corridorLight.shadow.bias = -0.0008;
   corridorLight.shadow.normalBias = 0.04;
+  corridorLight.layers.enable(1);
   scene.add(corridorLight);
 
   // ---------- schwebende Staubkörner ----------
@@ -387,6 +425,8 @@ export function createWorld(THREE, renderer) {
     colliders: buildColliders(),
     bounds: BOUNDS,
     spawn: SPAWN,
+    textures: T,
+    setEndDoor,
     update,
   };
 }

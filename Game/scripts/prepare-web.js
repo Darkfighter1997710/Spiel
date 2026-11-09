@@ -1,5 +1,5 @@
 // Kopiert alle Spieldateien in den Ordner "www" – das ist der Ordner, den die Android-App (Capacitor) einpackt.
-// Aufruf:  node scripts/prepare-web.mjs   (oder: npm run prepare-web)
+// Aufruf:  node scripts/prepare-web.js   (oder: npm run prepare-web)
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,7 @@ if (!existsSync(join(root, 'libs', 'three.module.min.js'))) {
 
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
-for (const item of ['index.html', 'style.css', 'main.mjs', 'manifest.json', 'js', 'libs', 'assets']) {
+for (const item of ['index.html', 'style.css', 'main.js', 'manifest.json', 'js', 'libs', 'assets']) {
   if (existsSync(join(root, item))) cpSync(join(root, item), join(out, item), { recursive: true });
 }
 console.log('Fertig: Ordner "www" ist bereit für Capacitor.');

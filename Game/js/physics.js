@@ -1,4 +1,4 @@
-// physics.mjs – Spielfigur-Physik ohne Abhängigkeit von Three.js (dadurch testbar).
+// physics.js – Spielfigur-Physik ohne Abhängigkeit von Three.js (dadurch testbar).
 // Die Figur ist ein senkrechter Zylinder (Kreis von oben gesehen). Hindernisse sind
 // Quader (AABB). Kollision = Kreis gegen Rechteck; das funktioniert auch an Ecken.
 

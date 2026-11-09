@@ -21,6 +21,17 @@
     <div id="touch-layer"></div>
     <div id="joystick" aria-hidden="true"><div id="joy-knob"></div></div>
 
+    <!-- Gespräch (erscheint, wenn der Wärter spricht) -->
+    <div id="dialogue" hidden>
+      <div id="dialogue-tap"></div>
+      <div id="dialogue-box">
+        <div id="dialogue-speaker"></div>
+        <p id="dialogue-text"></p>
+        <div id="dialogue-choices"></div>
+        <div id="dialogue-hint" hidden>Tippen zum Weiterlesen ▸</div>
+      </div>
+    </div>
+
     <button id="btn-settings" class="icon-btn" type="button" aria-label="Einstellungen">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
     </button>
@@ -88,6 +99,6 @@
     </div>
   </div>
 
-  <script type="module" src="main.mjs"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>

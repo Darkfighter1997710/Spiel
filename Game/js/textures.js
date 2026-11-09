@@ -1,4 +1,4 @@
-// textures.mjs – erzeugt alle Texturen beim Start per Code (Canvas).
+// textures.js – erzeugt alle Texturen beim Start per Code (Canvas).
 // Vorteil: keine Bilddateien, die fehlen oder kaputtgehen können; nahtlos kachelbar.
 // Jede Material-Textur besteht aus einer Farbkarte und einer Höhenkarte (für Relief/Bump).
 
@@ -85,10 +85,28 @@ function cracks(g, h, size, rand, count) {
   }
 }
 
+// Spiegelt die linke Hälfte auf die rechte (mx) und/oder die obere auf die untere (my).
+// Dadurch ist die Textur exakt symmetrisch – und, weil Kacheln sich wiederholen, auch nahtlos.
+function mirrorCanvas(c, mx, my) {
+  const s = c.width, hf = s / 2, g = c.getContext('2d');
+  if (mx) {
+    const snap = makeCanvas(s); snap.getContext('2d').drawImage(c, 0, 0);
+    g.save(); g.translate(s, 0); g.scale(-1, 1);
+    g.drawImage(snap, 0, 0, hf, s, 0, 0, hf, s);
+    g.restore();
+  }
+  if (my) {
+    const snap = makeCanvas(s); snap.getContext('2d').drawImage(c, 0, 0);
+    g.save(); g.translate(0, s); g.scale(1, -1);
+    g.drawImage(snap, 0, 0, s, hf, 0, 0, s, hf);
+    g.restore();
+  }
+}
+
 // ---------- Stein (Wand, Boden) ----------
 function stoneTexture({
   size = 512, rows = 6, minW = 1.3, maxW = 2.4, base = [104, 98, 90],
-  vary = 40, gap = 3, seed = 1, crackCount = 0, dirt = 0.2,
+  vary = 40, gap = 3, seed = 1, crackCount = 0, dirt = 0.2, mirrorX = false, mirrorY = false,
 }) {
   const rand = mulberry32(seed);
   const col = makeCanvas(size), g = col.getContext('2d');
@@ -139,6 +157,7 @@ function stoneTexture({
   blurTiled(hei, 1.6);
   addNoise(g, size, 24, rand);
   addNoise(h, size, 14, rand);
+  if (mirrorX || mirrorY) { mirrorCanvas(col, mirrorX, mirrorY); mirrorCanvas(hei, mirrorX, mirrorY); }
   return { color: col, height: hei };
 }
 
@@ -296,8 +315,8 @@ export function createTextures(THREE, renderer) {
   glow.colorSpace = THREE.SRGBColorSpace;
 
   return {
-    wall: pair(stoneTexture({ size: 512, rows: 7, minW: 1.3, maxW: 2.5, base: [112, 105, 96], vary: 45, gap: 3, seed: 21, crackCount: 5, dirt: 0.22 })),
-    floor: pair(stoneTexture({ size: 512, rows: 4, minW: 0.9, maxW: 1.6, base: [78, 74, 68], vary: 50, gap: 4, seed: 33, crackCount: 14, dirt: 0.32 })),
+    wall: pair(stoneTexture({ size: 512, rows: 7, minW: 1.3, maxW: 2.5, base: [112, 105, 96], vary: 45, gap: 3, seed: 21, crackCount: 5, dirt: 0.22, mirrorX: true })),
+    floor: pair(stoneTexture({ size: 512, rows: 4, minW: 0.9, maxW: 1.6, base: [78, 74, 68], vary: 50, gap: 4, seed: 33, crackCount: 14, dirt: 0.32, mirrorX: true, mirrorY: true })),
     wood: pair(woodTexture({ size: 512, planks: 4, seed: 5 })),
     metal: pair(metalTexture({ size: 256, seed: 9 })),
     fabric: pair(fabricTexture({ size: 256, seed: 11 })),

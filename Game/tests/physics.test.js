@@ -1,6 +1,6 @@
-// Automatische Prüfung der Physik (Node.js, ohne Browser):  node tests/physics.test.mjs
-import { PlayerPhysics, PLAYER } from '../js/physics.mjs';
-import { buildColliders, BOUNDS, SPAWN, BED, TABLE, ROOM } from '../js/layout.mjs';
+// Automatische Prüfung der Physik (Node.js, ohne Browser):  node tests/physics.test.js
+import { PlayerPhysics, PLAYER } from '../js/physics.js';
+import { buildColliders, BOUNDS, SPAWN, BED, TABLE, ROOM } from '../js/layout.js';
 
 let failures = 0;
 const ok = (cond, msg) => { if (!cond) { failures++; console.error('FEHLER:', msg); } };

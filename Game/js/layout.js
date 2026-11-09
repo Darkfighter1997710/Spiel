@@ -1,5 +1,5 @@
-// layout.mjs – gemeinsame Maße der Zelle und aller festen Hindernisse.
-// Wird von world.mjs (Darstellung) UND physics.mjs/Tests (Kollisionen) benutzt,
+// layout.js – gemeinsame Maße der Zelle und aller festen Hindernisse.
+// Wird von world.js (Darstellung) UND physics.js/Tests (Kollisionen) benutzt,
 // damit Sichtbares und Berührbares immer exakt zusammenpassen.
 // Einheiten: Meter. x = rechts, y = oben, z = nach hinten (Blick beim Start: -z).
 
@@ -43,3 +43,17 @@ export function buildColliders() {
   c.push(aabb(BUCKET.x - BUCKET.half, BUCKET.x + BUCKET.half, BUCKET.z - BUCKET.half, BUCKET.z + BUCKET.half, 0, BUCKET.top, 'eimer'));
   return c;
 }
+
+// ---- Gang hinter der Tür und Wärter-Auftritt ----
+// Endwand des Gangs (bei den aktuellen Maßen z = -6,0)
+export const END_Z = -(ROOM.halfD + ROOM.wall + CORRIDOR.length);
+// Holztür am Gangende: öffnet sich, der Wärter tritt aus der dunklen Nische dahinter
+export const END_DOOR = Object.freeze({ halfW: 0.6, height: 2.2 });
+// Laufweg des Wärters (nur z ändert sich; er geht Richtung Zelle = +z)
+export const GUARD = Object.freeze({
+  x: 0,
+  startZ: END_Z - 0.2,     // steht zuerst in der Nische hinter der Tür
+  hideZ: END_Z - 0.4,      // dort verschwindet er wieder im Dunkeln
+  stopZ: -3.3,             // bleibt ca. 0,6 m vor dem Gitter stehen
+  headHeight: 1.68,        // Augenhöhe des Wärters (Ziel für den Blick der Kamera)
+});

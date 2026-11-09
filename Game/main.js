@@ -1,4 +1,4 @@
-// main.mjs – Start, Hauptschleife, Kamera, Einstellungen.
+// main.js – Start, Hauptschleife, Kamera, Einstellungen.
 // Three.js und alle Spielmodule werden erst hier per import() geladen, damit bei einem
 // Ladefehler eine verständliche Meldung erscheint statt eines leeren Bildschirms.
 
@@ -54,12 +54,21 @@ boot().catch((err) => {
 });
 
 async function boot() {
-  const { loadThree } = await import('./js/loader.mjs');
+  const { loadThree } = await import('./js/loader.js');
   const { THREE, source } = await loadThree();
-  const [{ createWorld }, { PlayerPhysics, PLAYER }, { TouchControls }] = await Promise.all([
-    import('./js/world.mjs'),
-    import('./js/physics.mjs'),
-    import('./js/controls.mjs'),
+  const [
+    { createWorld }, { PlayerPhysics, PLAYER }, { TouchControls }, { createArms },
+    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD },
+  ] = await Promise.all([
+    import('./js/world.js'),
+    import('./js/physics.js'),
+    import('./js/controls.js'),
+    import('./js/arms.js'),
+    import('./js/guard.js'),
+    import('./js/guard-event.js'),
+    import('./js/dialogue.js'),
+    import('./js/dialogue-ui.js'),
+    import('./js/layout.js'),
   ]);
 
   const settings = loadSettings();
@@ -80,6 +89,7 @@ async function boot() {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false;   // Schatten sind statisch: einmal berechnen genügt (spart viel Akku)
   renderer.shadowMap.needsUpdate = true;
+  renderer.autoClear = false;               // wir löschen selbst: Welt und Arme werden in zwei Durchgängen gezeichnet
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const BASE_EXPOSURE = 1.1;
   renderer.toneMappingExposure = BASE_EXPOSURE * settings.bright;
@@ -93,6 +103,29 @@ async function boot() {
   const world = createWorld(THREE, renderer);
   const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 40);
   camera.rotation.order = 'YXZ';
+
+  // Arme und Hände: hängen an der Kamera und liegen auf Ebene 1. Sie werden in einem zweiten
+  // Durchgang NACH dem Löschen der Tiefe gezeichnet – so ragen sie nie in Wände hinein.
+  world.scene.add(camera);
+  const arms = createArms(THREE, world.textures);
+  camera.add(arms.group);
+  arms.group.traverse((o) => o.layers.set(1));
+
+  // Wärter-Auftritt: nach 15 s Spielzeit öffnet sich die Tür am Gangende, der Wärter geht zur Gittertür
+  // und spricht mit dem Spieler (Ablauf: guard-event.js, Text: dialogue.js).
+  const guard = createGuard(THREE);
+  world.scene.add(guard.group);
+  const guardEvent = new GuardEvent();
+  const dialogue = new DialogueRunner(GUARD_DIALOGUE);
+  let dialogueActive = false;
+  const dialogueUI = createDialogueUI({
+    root: $('dialogue'), hud: $('hud'), tap: $('dialogue-tap'), speaker: $('dialogue-speaker'),
+    text: $('dialogue-text'), choices: $('dialogue-choices'), hint: $('dialogue-hint'),
+  }, {
+    onTap: () => dialogue.tap(),
+    onChoose: (i) => dialogue.choose(i),
+  });
+  const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
   const physics = new PlayerPhysics(world.colliders, world.bounds, world.spawn);
   let yaw = world.spawn.yaw || 0;
@@ -169,7 +202,8 @@ async function boot() {
   let started = false;
   const startBtn = $('start-btn');
   $('engine-info').textContent = `Three.js r${THREE.REVISION} · ${source} geladen`;
-  renderer.compile(world.scene, camera);      // Shader vorab übersetzen (verhindert Ruckler beim ersten Bild)
+  camera.layers.set(1); renderer.compile(world.scene, camera);   // Shader vorab übersetzen (verhindert Ruckler beim ersten Bild)
+  camera.layers.set(0); renderer.compile(world.scene, camera);
   startBtn.textContent = 'Spiel starten';
   startBtn.disabled = false;
   startBtn.addEventListener('click', () => {
@@ -180,7 +214,7 @@ async function boot() {
   });
 
   // ---------- Kamera: Position, Kopfwippen, Landeruck, Sprint-Weitwinkel ----------
-  const cam = { phase: 0, amp: 0, dip: 0, eye: null, fov: 72 };
+  const cam = { phase: 0, amp: 0, dip: 0, eye: null, fov: 72, sprinting: false };
   function updateCamera(dt) {
     const targetEye = physics.y + PLAYER.eye;
     if (cam.eye === null) cam.eye = targetEye;
@@ -194,6 +228,7 @@ async function boot() {
 
     const speed = physics.grounded ? physics.speedXZ : 0;
     const sprinting = speed > PLAYER.walkSpeed * 1.25;
+    cam.sprinting = sprinting;
     const wantAmp = Math.min(1, speed / PLAYER.walkSpeed) * (sprinting ? 1.5 : 1);
     cam.amp += (wantAmp - cam.amp) * (1 - Math.exp(-dt * 10));
     cam.phase += dt * speed * 2.0;
@@ -213,6 +248,7 @@ async function boot() {
   // ---------- Hauptschleife ----------
   const STEP = 1 / 90;           // feste Physik-Schrittweite (verhindert Durchrutschen bei hoher Geschwindigkeit)
   let acc = 0;
+  let prevYaw = yaw, prevPitch = pitch;
   let last = performance.now();
   let fpsTime = 0, fpsFrames = 0;
   const isPortrait = () => window.innerHeight > window.innerWidth;
@@ -226,15 +262,36 @@ async function boot() {
 
     const active = started && !settingsOpen && !isPortrait() && !document.hidden;
     if (active) {
-      const look = controls.consumeLook();
-      const k = BASE_LOOK * settings.sens;
-      yaw -= look.dx * k;
-      pitch -= look.dy * k * (settings.invert ? -1 : 1);
-      pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+      // --- Wärter-Auftritt weiterlaufen lassen (zählt nur echte Spielzeit) ---
+      guardEvent.update(dt, true);
+      if (guardEvent.consumeDialogueStart()) { dialogue.start(); dialogueActive = true; }
+      if (dialogueActive) {
+        dialogue.update(dt);
+        if (dialogue.finished) { dialogueActive = false; guardEvent.finishTalk(); dialogueUI.hide(); }
+        else dialogueUI.render(dialogue);
+      }
 
-      const mv = controls.getMove();
-      physics.setInput(mv.x, mv.y, controls.sprint, yaw);
-      if (controls.consumeJump()) physics.queueJump();
+      if (guardEvent.inputLocked) {
+        // Gespräch: keine Steuerung, die Kamera dreht sich sanft zum Wärter
+        controls.consumeLook(); controls.consumeJump(); controls.reset();
+        physics.setInput(0, 0, false, yaw);
+        const eyeY = physics.y + PLAYER.eye;
+        const dx = guardEvent.x - physics.x, dz = guardEvent.z - physics.z;
+        const dist = Math.max(0.5, Math.hypot(dx, dz));
+        const yawT = Math.atan2(-dx, -dz);
+        const pitchT = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, Math.atan2(GUARD.headHeight - eyeY, dist)));
+        const kk = 1 - Math.exp(-dt * 4);
+        yaw += wrapAngle(yawT - yaw) * kk;
+        pitch += (pitchT - pitch) * kk;
+      } else {
+        const look = controls.consumeLook();
+        const k = BASE_LOOK * settings.sens;
+        yaw -= look.dx * k;
+        pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch - look.dy * k * (settings.invert ? -1 : 1)));
+        const mv = controls.getMove();
+        physics.setInput(mv.x, mv.y, controls.sprint, yaw);
+        if (controls.consumeJump()) physics.queueJump();
+      }
 
       acc += dt;
       let n = 0;
@@ -246,9 +303,36 @@ async function boot() {
       acc = 0;
     }
 
+    // Drehtempo (für das leichte Nachhinken der Hände) – egal ob Wischen oder automatische Kamerafahrt
+    const yawRate = wrapAngle(yaw - prevYaw) / Math.max(dt, 0.004);
+    const pitchRate = (pitch - prevPitch) / Math.max(dt, 0.004);
+    prevYaw = yaw; prevPitch = pitch;
+
+    // Wärter und Tür am Gangende darstellen
+    {
+      const dx = physics.x - guardEvent.x, dz = physics.z - guardEvent.z;
+      const lookYaw = wrapAngle(Math.atan2(dx, dz) - guardEvent.yaw);
+      const lookPitch = Math.atan2(GUARD.headHeight - (physics.y + PLAYER.eye), Math.max(0.5, Math.hypot(dx, dz)));
+      world.setEndDoor(guardEvent.doorOpen);
+      guard.update(dt, {
+        x: guardEvent.x, z: guardEvent.z, yaw: guardEvent.yaw, visible: guardEvent.visible,
+        phase: guardEvent.phase, amp: guardEvent.amp,
+        talking: dialogueActive && dialogue.talking,
+        attention: guardEvent.state === 'arrive' || guardEvent.state === 'talk',
+        time: now / 1000, lookYaw, lookPitch,
+      });
+    }
+
     updateCamera(dt);
+    arms.update(dt, {
+      phase: cam.phase, amp: cam.amp, sprinting: cam.sprinting, grounded: physics.grounded, vy: physics.vy,
+      yawRate, pitchRate, dip: cam.dip, time: now / 1000,
+    });
     world.update(now / 1000);
-    renderer.render(world.scene, camera);
+    renderer.clear();
+    camera.layers.set(0); renderer.render(world.scene, camera);   // 1. Welt
+    renderer.clearDepth();
+    camera.layers.set(1); renderer.render(world.scene, camera);   // 2. Arme (immer vor der Welt)
 
     // Falls das Gerät zu langsam ist, die Auflösung schrittweise verringern (nie wieder erhöhen)
     if (active) {

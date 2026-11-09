@@ -3,9 +3,20 @@
 Ein 3D-Spiel für das Smartphone (Three.js, HTML, CSS, JavaScript). Du erwachst in einer mittelalterlichen
 Gefängniszelle und kannst dich frei bewegen.
 
-**Enthalten in Phase 1:** 3D-Zelle · Ich-Perspektive · dynamischer Joystick · Kamera per Wischen ·
-Gehen · Sprinten · Springen · Physik und Kollisionen.
-**Noch nicht enthalten:** Monster, Waffen, Inventar, Quests (kommen in späteren Phasen).
+**Enthalten:** 3D-Zelle mit symmetrischen Wänden · Ich-Perspektive mit sichtbaren Armen und Händen ·
+dynamischer Joystick · Kamera per Wischen · Gehen · Sprinten · Springen · Physik und Kollisionen ·
+**ein Gefängniswärter, der nach 15 Sekunden Spielzeit an die Gittertür kommt und mit dir spricht.**
+**Noch nicht enthalten:** Monster, Waffen, Inventar, Quests, Ton (kommen in späteren Phasen).
+
+## Der Wärter
+
+* Nach **15 Sekunden Spielzeit** öffnet sich am Ende des Gangs die Holztür. Der Wärter geht zur Gittertür
+  (ca. 4 Sekunden später beginnt er zu sprechen). Pausen in den Einstellungen zählen nicht mit.
+* Während des Gesprächs steuert sich die Spielfigur nicht selbst: Die Kamera dreht sich zum Wärter, Joystick und
+  Buttons verschwinden. **Tippen** irgendwo zeigt den Text sofort ganz bzw. geht weiter, bei den Antworten tippst du auf
+  den Knopf deiner Wahl.
+* Danach dreht er sich um, geht zurück, die Tür schließt sich, und du kannst weiterspielen. Er kommt einmal pro Start.
+* Den Text findest du in `js/dialogue.js`, die Wartezeit (`triggerAfter`) in `js/guard-event.js`.
 
 ## Steuerung
 
@@ -14,15 +25,14 @@ Gehen · Sprinten · Springen · Physik und Kollisionen.
 | Gehen | Linke Bildschirmhälfte berühren und ziehen (der Joystick erscheint unter dem Finger) |
 | Umsehen | Rechte Bildschirmhälfte wischen |
 | Springen | Button „Sprung" antippen (nur vom Boden aus) |
-| Sprinten | Button „Sprint" gedrückt halten |
+| Sprinten | Button „Sprint" gedrückt halten (Arme schwingen stärker, Hände ballen sich) |
 | Einstellungen | Regler-Symbol oben rechts: Kamera-Empfindlichkeit, Helligkeit, Blick umkehren, Vollbild |
 
 Zum Testen am Computer: WASD/Pfeiltasten, Leertaste (Sprung), Shift (Sprint), Maus ziehen (links = Joystick, rechts = Umsehen).
 
-## WICHTIG: Three.js lokal ablegen (einmalig)
+## Three.js lokal ablegen (einmalig, empfohlen)
 
-Das Spiel braucht die 3D-Bibliothek Three.js in Version 0.170.0. Sie konnte nicht direkt in dieses ZIP gelegt
-werden. Deshalb gilt:
+Das Spiel braucht die 3D-Bibliothek Three.js in Version 0.170.0. Sie liegt nicht im ZIP.
 
 * **Ohne die Datei** lädt das Spiel Three.js automatisch aus dem Internet. Das reicht zum Ausprobieren.
 * **Mit der Datei** läuft das Spiel auch ohne Internet, und die Android-App funktioniert später ohne Netz.
@@ -39,24 +49,25 @@ Auf dem Startbildschirm steht unten klein, ob Three.js „lokal" oder „online"
 
 ## Auf GitHub hochladen und spielen
 
-1. ZIP entpacken. Der Inhalt des Ordners `Game` kommt in dein Repository, sodass `index.html`
-   **ganz oben** im Repository liegt (nicht in einem Unterordner) und die Ordner `js`, `libs`, `assets`
-   erhalten bleiben.
-2. Auf GitHub: Repository → **Settings** → **Pages** → „Deploy from a branch" → Branch `main`, Ordner `/ (root)` → Save.
-3. Nach ein bis zwei Minuten steht dort die Adresse (`https://DEINNAME.github.io/REPOSITORY/`). Diese im
-   Handy-Browser (Chrome) öffnen, **Spiel starten** tippen.
-4. Optional: Chrome-Menü → „Zum Startbildschirm hinzufügen" legt ein App-Symbol an.
+1. ZIP entpacken. Der Inhalt des Ordners `Game` kommt in dein Repository (bzw. in deinen Spiel-Ordner), sodass
+   `index.html` direkt darin liegt und **alle Ordner erhalten bleiben** (`js`, `libs`, `assets`, …).
+2. **Hast du eine frühere Version schon online?** Dann alles überschreiben. Falls dort noch Dateien mit der Endung
+   `.mjs` liegen (`main.mjs`, `js/*.mjs`), werden sie nicht mehr gebraucht und können gelöscht werden.
+3. Auf GitHub: Repository → **Settings** → **Pages** → „Deploy from a branch" → Branch `main` → Save.
+4. Die Adresse im Handy-Browser (Chrome) öffnen, **Spiel starten** tippen. Nach einem Update die Seite neu laden
+   (Browser-Cache).
+5. Optional: Chrome-Menü → „Zum Startbildschirm hinzufügen" legt ein App-Symbol an.
 
-Hinweis: Das Spiel funktioniert nicht, wenn man `index.html` direkt aus dem Dateimanager öffnet. Browser
-erlauben dabei keine Spielmodule. Es muss über eine Adresse (GitHub Pages oder lokaler Server) laufen.
+Das Spiel funktioniert nicht, wenn man `index.html` direkt aus dem Dateimanager öffnet (Browser blockieren dann
+Module). Es muss über eine Adresse laufen (GitHub Pages oder lokaler Server).
 
 ## Lokal am Computer starten
 
 ```
 cd Game
-python3 -m http.server 8080
+python3 -m http.server 8080      # oder: npm start
 ```
-Dann `http://localhost:8080` im Browser öffnen. (Alternativ: `npx serve`.)
+Dann `http://localhost:8080` im Browser öffnen. Tests: `npm test`.
 
 ## Als Android-App verpacken (später, mit Capacitor)
 
@@ -64,55 +75,36 @@ Voraussetzungen: Computer (oder Cloud-Build) mit Node.js und Android Studio. Die
 `libs/three.module.min.js` muss vorhanden sein (siehe oben).
 
 ```
-npm install @capacitor/core @capacitor/cli @capacitor/android
 npm run prepare-web          # kopiert alles nach "www"
+npm install @capacitor/core @capacitor/cli @capacitor/android
 npx cap add android
 npx cap sync android
 npx cap open android         # in Android Studio: Build → Build APK(s)
 ```
 
 * In `capacitor.config.json` die `appId` (z. B. `de.deinname.verlies`) anpassen, bevor du `cap add android` ausführst.
-* Dieser Weg wurde in Phase 1 **nicht** ausprobiert. Wenn du die APK ohne Computer bauen möchtest, kann in
-  einer späteren Phase eine automatische Cloud-Erstellung über GitHub Actions ergänzt werden.
-
-## Hinweis zu den Dateiendungen
-
-Alle Programmdateien enden auf `.mjs` statt `.js`. Es ist dieselbe Sprache und läuft im Browser genauso.
-Der Grund: Mail-Programme (z. B. Gmail, Outlook) blockieren ZIP-Dateien mit `.js`-Dateien. Bitte die
-Endungen nicht ändern.
+* Dieser Weg wurde bisher **nicht** ausprobiert.
 
 ## Projektstruktur
 
 ```
-index.html, style.css, main.mjs  Seite, Oberfläche, Start und Hauptschleife
+index.html, style.css, main.js   Seite, Oberfläche, Start und Hauptschleife
 manifest.json                    Angaben für „Zum Startbildschirm hinzufügen"
-js/loader.mjs                     lädt Three.js (lokal, sonst online)
-js/layout.mjs                     Maße der Zelle und aller Hindernisse (gemeinsam für Optik und Physik)
-js/world.mjs                      baut Zelle, Möbel, Gittertür, Fackel, Licht
-js/textures.mjs                   erzeugt alle Texturen per Code (keine Bilddateien nötig)
-js/physics.mjs                    Bewegung, Schwerkraft, Sprung, Kollisionen
-js/controls.mjs                   Joystick, Wischen, Buttons
-libs/                            hier liegt three.module.min.js
+js/                              Spiel-Module (Laden, Maße, Physik, Steuerung, Texturen, Welt, Arme)
+libs/                            hier liegt three.module.min.js (siehe oben)
 assets/icons/                    App-Symbole
-scripts/prepare-web.mjs          bereitet den Ordner "www" für die Android-App vor
-tests/                           automatische Prüfungen (Physik, Touch, Aufbau)
+scripts/prepare-web.js           bereitet den Ordner "www" für die Android-App vor
+tests/                           automatische Prüfungen
+ENTWICKLUNG.md                   Projektbeschreibung für die Weiterentwicklung (Aufbau, Entscheidungen, Teststand)
 ```
 
-Es gibt keine Ordner `models` und `textures`: Alle Möbel werden aus einfachen Formen im Code gebaut und alle
-Texturen beim Start erzeugt. Dadurch kann keine Datei fehlen. Für spätere Phasen (Figuren, Waffen) werden
-passende Ordner ergänzt.
+Es gibt keine Ordner `models` und `textures`: Möbel werden aus einfachen Formen im Code gebaut und alle
+Texturen beim Start erzeugt. Dadurch kann keine Datei fehlen.
 
 ## Anpassen
 
-* **Zu dunkel/hell:** im Spiel Einstellungen → Helligkeit. Dauerhaft: oben in `js/world.mjs` die Werte
+* **Zu dunkel/hell:** im Spiel Einstellungen → Helligkeit. Dauerhaft: oben in `js/world.js` die Werte
   `TORCH_INTENSITY` und `AMBIENT_INTENSITY`.
-* **Lauf-/Sprintgeschwindigkeit, Sprunghöhe:** oben in `js/physics.mjs` (`PLAYER`).
-* **Zu langsam auf dem Gerät:** Das Spiel senkt die Auflösung automatisch. Zusätzlich kann in `main.mjs`
+* **Lauf-/Sprintgeschwindigkeit, Sprunghöhe:** oben in `js/physics.js` (`PLAYER`).
+* **Zu langsam auf dem Gerät:** Das Spiel senkt die Auflösung automatisch. Zusätzlich kann in `main.js`
   `Math.min(dpr, 1.75)` kleiner gewählt werden.
-
-## Automatische Tests (optional, am Computer)
-
-```
-npm test
-```
-Prüft Physik (Wände, Ecken, Tür, Möbel, Springen), Touch-Logik und den Aufbau-Code. Ersetzt keinen Test auf dem Handy.

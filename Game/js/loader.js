@@ -1,4 +1,4 @@
-// loader.mjs – lädt Three.js.
+// loader.js – lädt Three.js.
 // 1. Zuerst die lokale Kopie  libs/three.module.min.js  (funktioniert offline und in der Android-App).
 // 2. Falls sie fehlt: dieselbe feste Version vom CDN (nur mit Internet).
 // Die Version ist absichtlich festgenagelt, damit sich das Spiel nicht von selbst verändert.

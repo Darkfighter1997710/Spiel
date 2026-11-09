@@ -1,5 +1,5 @@
-// Prüft die Touch-Logik mit simulierten Fingern (ohne Browser):  node tests/controls.test.mjs
-import { TouchControls } from '../js/controls.mjs';
+// Prüft die Touch-Logik mit simulierten Fingern (ohne Browser):  node tests/controls.test.js
+import { TouchControls } from '../js/controls.js';
 
 let failures = 0;
 const ok = (c, m) => { if (!c) { failures++; console.error('FEHLER:', m); } };

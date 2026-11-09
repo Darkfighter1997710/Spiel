@@ -1,6 +1,6 @@
 // Trockenlauf: führt den Aufbau-Code (Texturen + Welt) mit einer Attrappe von Three.js und Canvas aus.
 // Er findet Programmfehler wie Tippfehler oder falsche Variablen. Er kann NICHT prüfen, wie die Welt aussieht.
-//   node tests/build.smoke.mjs
+//   node tests/build.smoke.js
 function generic(name = 'x') {
   const fn = function () {};
   return new Proxy(fn, {
@@ -32,7 +32,7 @@ const ctx = new Proxy({}, {
 globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => ctx }) };
 globalThis.CanvasRenderingContext2D = { prototype: { filter: '' } };
 
-const { createWorld } = await import('../js/world.mjs');
+const { createWorld } = await import('../js/world.js');
 const renderer = { capabilities: { getMaxAnisotropy: () => 8 } };
 const world = createWorld(THREE, renderer);
 if (!world || !world.colliders.length || typeof world.update !== 'function') throw new Error('Welt unvollständig');
