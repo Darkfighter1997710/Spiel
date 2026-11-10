@@ -5,7 +5,7 @@ Gefängniszelle und kannst dich frei bewegen.
 
 **Enthalten:** 3D-Zelle mit symmetrischen Wänden · Ich-Perspektive mit sichtbaren Armen und Händen ·
 dynamischer Joystick · Kamera per Wischen · Gehen · Sprinten · Springen · Physik und Kollisionen ·
-**ein Gefängniswärter, der nach 15 Sekunden Spielzeit an die Gittertür kommt und mit dir spricht, Schlafen im Bett und Morgenlicht in der Zelle.**
+**ein Gefängniswärter, der nach 15 Sekunden Spielzeit an die Gittertür kommt und mit dir spricht, Schlafen im Bett Morgenlicht in der Zelle und Abholen am Morgen.**
 **Noch nicht enthalten:** Monster, Waffen, Inventar, Quests, Ton (kommen in späteren Phasen).
 
 ## Der Wärter
@@ -22,6 +22,10 @@ dynamischer Joystick · Kamera per Wischen · Gehen · Sprinten · Springen · P
   der Knopf **Schlafen**. Du legst dich hin, das Bild wird schwarz („Die Nacht vergeht …“), dann öffnest du die Augen: **Das
   Morgenlicht scheint durchs Fenster in die Zelle**, die Gitterstäbe werfen Streifen auf den Boden, und der ganze Raum ist
   heller. Du stehst neben dem Bett auf und kannst dich wieder frei bewegen. Das geht einmal pro Spielstart.
+* **Abholen:** Etwa 6 Sekunden nach dem Aufstehen öffnet sich die Tür am Gangende, der Wärter kommt zurück, schließt die
+  Zellentür auf (das Gitter schwingt auf) und sagt: „Die Sonne ist aufgegangen. Es ist so weit.“ Danach geht er voraus, und du
+  folgst ihm automatisch durch den Gang. Das Bild wird schwarz, und die Endkarte „Ende von Kapitel 1“ erscheint. Mit
+  **Von vorn beginnen** startest du neu.
 * Den Text findest du in `js/dialogue.js`, die Wartezeit (`triggerAfter`) in `js/guard-event.js`.
 
 ## Steuerung

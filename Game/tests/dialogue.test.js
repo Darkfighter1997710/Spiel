@@ -1,5 +1,5 @@
 // Prüft Gesprächstext und Gesprächsablauf:  node tests/dialogue.test.js
-import { DialogueRunner, GUARD_DIALOGUE, validateDialogue } from '../js/dialogue.js';
+import { DialogueRunner, GUARD_DIALOGUE, ESCORT_DIALOGUE, validateDialogue } from '../js/dialogue.js';
 
 let failures = 0;
 const ok = (c, m) => { if (!c) { failures++; console.error('FEHLER:', m); } };
@@ -12,8 +12,21 @@ ok(validateDialogue({ start: 'a', nodes: { a: { text: 'x', next: 'zz' } } }).len
 ok(validateDialogue({ start: 'a', nodes: { a: { text: 'x', next: 'b' }, b: { text: 'y', next: 'a' } } }).length > 0, 'Endlosschleife nicht erkannt');
 ok(validateDialogue({ start: 'a', nodes: { a: { text: 'x', next: null }, b: { text: 'y', next: null } } }).length > 0, 'unerreichbarer Knoten nicht erkannt');
 
+// 1b) Das Gespräch am Morgen (Abholen) ist ebenfalls in Ordnung und führt zum Mitgehen
+{
+  const pr = validateDialogue(ESCORT_DIALOGUE);
+  ok(pr.length === 0, `Abhol-Gespräch fehlerhaft: ${pr.join('; ')}`);
+  const r = new DialogueRunner(ESCORT_DIALOGUE, { charsPerSecond: 1000 });
+  r.start();
+  let n = 0;
+  while (!r.finished && n++ < 20) { r.update(1); r.tap(); }
+  ok(r.finished && n === 2, `Abhol-Gespräch hat ${n} statt 2 Sprechblasen`);
+  const all = Object.values(ESCORT_DIALOGUE.nodes).map((x) => x.text).join(' ');
+  ok(/mit/.test(all), 'Abhol-Gespräch sagt nicht, dass der Spieler mitkommen soll');
+}
+
 // 2) Lesbarkeit auf dem Handy: Texte nicht zu lang
-for (const [id, n] of Object.entries(GUARD_DIALOGUE.nodes)) {
+for (const [id, n] of [...Object.entries(GUARD_DIALOGUE.nodes), ...Object.entries(ESCORT_DIALOGUE.nodes)]) {
   ok(n.text.length <= 130, `${id}: Text zu lang (${n.text.length} Zeichen)`);
   for (const c of n.choices || []) ok(c.text.length <= 38, `${id}: Antwort zu lang (${c.text.length} Zeichen)`);
 }

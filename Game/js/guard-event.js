@@ -51,6 +51,7 @@ export class GuardEvent {
   get inputLocked() { return this.state === 'arrive' || this.state === 'talk'; }
   get cameraLook() { return this.inputLocked; }
   get done() { return this.state === 'done'; }
+  get attention() { return this.state === 'arrive' || this.state === 'talk'; }   // Wärter schaut den Spieler an
 
   // true genau einmal, sobald das Gespräch beginnen soll
   consumeDialogueStart() {

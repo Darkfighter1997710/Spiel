@@ -58,8 +58,8 @@ async function boot() {
   const { THREE, source } = await loadThree();
   const [
     { createWorld }, { PlayerPhysics, PLAYER }, { TouchControls }, { createArms },
-    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD, SLEEP, distanceToBed },
-    { SleepEvent },
+    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE, ESCORT_DIALOGUE }, { createDialogueUI }, { GUARD, SLEEP, distanceToBed },
+    { SleepEvent }, { EscortEvent },
   ] = await Promise.all([
     import('./js/world.js'),
     import('./js/physics.js'),
@@ -71,6 +71,7 @@ async function boot() {
     import('./js/dialogue-ui.js'),
     import('./js/layout.js'),
     import('./js/sleep-event.js'),
+    import('./js/escort-event.js'),
   ]);
 
   const settings = loadSettings();
@@ -118,16 +119,24 @@ async function boot() {
   const guard = createGuard(THREE);
   world.scene.add(guard.group);
   const guardEvent = new GuardEvent();
-  const dialogue = new DialogueRunner(GUARD_DIALOGUE);
-  let dialogueActive = false;
+  const guardTalk = new DialogueRunner(GUARD_DIALOGUE);       // Abend: Hinrichtung morgen, jetzt schlafen
+  const escortTalk = new DialogueRunner(ESCORT_DIALOGUE);     // Morgen: Abholen
+  let talk = null;                                            // gerade laufendes Gespräch (oder null)
   const dialogueUI = createDialogueUI({
     root: $('dialogue'), hud: $('hud'), tap: $('dialogue-tap'), speaker: $('dialogue-speaker'),
     text: $('dialogue-text'), choices: $('dialogue-choices'), hint: $('dialogue-hint'),
   }, {
-    onTap: () => dialogue.tap(),
-    onChoose: (i) => dialogue.choose(i),
+    onTap: () => { if (talk) talk.tap(); },
+    onChoose: (i) => { if (talk) talk.choose(i); },
   });
   const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  // Abholen am Morgen: nach dem Aufwachen kommt der Wärter zurück, öffnet die Zellentür und führt den Spieler ab
+  // (Ablauf: escort-event.js). Am Ende wird das Bild schwarz und die Endkarte erscheint.
+  const escort = new EscortEvent();
+  const endCard = $('end-card');
+  let endCardShown = false;
+  $('btn-restart').addEventListener('click', () => window.location.reload());
 
   // Schlafen: nach dem Gespräch darf der Spieler zum Bett gehen und schlafen. Danach scheint das Morgenlicht in die Zelle.
   const sleepEvent = new SleepEvent();
@@ -227,13 +236,16 @@ async function boot() {
   // ---------- Kamera: Position, Kopfwippen, Landeruck, Sprint-Weitwinkel ----------
   const cam = { phase: 0, amp: 0, dip: 0, eye: null, fov: 72, sprinting: false };
   function updateCamera(dt) {
-    if (sleepEvent.cameraOverride) {
-      // Schlafen: die Kamera folgt dem Ablauf (hinlegen, im Bett liegen, aufstehen)
-      const c = sleepEvent.cam;
+    const override = sleepEvent.cameraOverride ? sleepEvent : (escort.cameraOverride ? escort : null);
+    if (override) {
+      // Schlafen oder Abgeführtwerden: die Kamera folgt dem Ablauf
+      const c = override.cam;
       yaw = c.yaw; pitch = c.pitch;
       camera.position.set(c.x, c.y, c.z);
       camera.rotation.set(c.pitch, c.yaw, 0);
-      cam.eye = null; cam.amp = 0; cam.dip = 0;
+      cam.eye = null; cam.dip = 0;
+      if (override === escort) { cam.phase = escort.camPhase; cam.amp = escort.camAmp; }   // Hände schwingen beim Gehen mit
+      else cam.amp = 0;
       return;
     }
     const targetEye = physics.y + PLAYER.eye;
@@ -284,34 +296,42 @@ async function boot() {
     if (active) {
       // --- Wärter-Auftritt weiterlaufen lassen (zählt nur echte Spielzeit) ---
       guardEvent.update(dt, true);
-      if (guardEvent.consumeDialogueStart()) { dialogue.start(); dialogueActive = true; }
-      if (dialogueActive) {
-        dialogue.update(dt);
-        if (dialogue.finished) { dialogueActive = false; guardEvent.finishTalk(); sleepEvent.unlock(); dialogueUI.hide(); }
-        else dialogueUI.render(dialogue);
+      if (guardEvent.consumeDialogueStart()) { talk = guardTalk; talk.start(); }
+      if (talk) {
+        talk.update(dt);
+        if (talk.finished) {
+          if (talk === guardTalk) { guardEvent.finishTalk(); sleepEvent.unlock(); } else escort.finishTalk();
+          talk = null;
+          dialogueUI.hide();
+        } else dialogueUI.render(talk);
       }
 
       // Schlafen (läuft nur, wenn gespielt wird)
       sleepEvent.update(dt, true);
+      if (sleepEvent.done) escort.begin();                                  // Aufgewacht und aufgestanden: Rückkehr des Wärters
+      escort.update(dt, true, { x: physics.x, z: physics.z, yaw, pitch });
+      if (escort.consumeDialogueStart()) { talk = escortTalk; talk.start(); }
+      if (escort.consumeGateOpened()) world.refreshShadows();               // offene Tür wirft andere Schatten
       if (sleepEvent.consumePrepareMorning()) world.prepareMorning();      // Bildschirm ist jetzt schwarz
       if (sleepEvent.consumeStandUp()) physics.teleport(SLEEP.stand.x, SLEEP.stand.z);
 
-      if (guardEvent.inputLocked || sleepEvent.inputLocked) {
-        // Gespräch oder Schlafen: keine Steuerung
+      if (guardEvent.inputLocked || sleepEvent.inputLocked || escort.inputLocked) {
+        // Gespräch, Schlafen oder Abführen: keine Steuerung
         controls.consumeLook(); controls.consumeJump(); controls.reset();
         physics.setInput(0, 0, false, yaw);
       }
-      if (guardEvent.inputLocked) {
+      const lookSrc = guardEvent.cameraLook ? guardEvent : (escort.cameraLook ? escort : null);
+      if (lookSrc) {
         // Gespräch: die Kamera dreht sich sanft zum Wärter
         const eyeY = physics.y + PLAYER.eye;
-        const dx = guardEvent.x - physics.x, dz = guardEvent.z - physics.z;
+        const dx = lookSrc.x - physics.x, dz = lookSrc.z - physics.z;
         const dist = Math.max(0.5, Math.hypot(dx, dz));
         const yawT = Math.atan2(-dx, -dz);
         const pitchT = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, Math.atan2(GUARD.headHeight - eyeY, dist)));
         const kk = 1 - Math.exp(-dt * 4);
         yaw += wrapAngle(yawT - yaw) * kk;
         pitch += (pitchT - pitch) * kk;
-      } else if (!sleepEvent.inputLocked) {
+      } else if (!sleepEvent.inputLocked && !escort.inputLocked) {
         const look = controls.consumeLook();
         const k = BASE_LOOK * settings.sens;
         yaw -= look.dx * k;
@@ -343,31 +363,34 @@ async function boot() {
       const showBtn = free && near, showHint = free && !near;
       if (showBtn !== sleepShown.btn) { sleepShown.btn = showBtn; sleepEls.btn.hidden = !showBtn; }
       if (showHint !== sleepShown.hint) { sleepShown.hint = showHint; sleepEls.hint.hidden = !showHint; }
-      const sl = sleepEvent.inputLocked;
+      const sl = sleepEvent.inputLocked || escort.inputLocked;
       if (sl !== sleepShown.sleeping) {
         sleepShown.sleeping = sl;
-        if (sl) $('hud').classList.add('sleeping'); else $('hud').classList.remove('sleeping');
+        if (sl) $('hud').classList.add('cutscene'); else $('hud').classList.remove('cutscene');
       }
-      const f = Math.round(sleepEvent.fade * 100) / 100;
+      const f = Math.round(Math.max(sleepEvent.fade, escort.fade) * 100) / 100;
       if (f !== sleepShown.fade) { sleepShown.fade = f; sleepEls.fade.style.background = `rgba(0,0,0,${f})`; }
       if (sleepEvent.caption !== sleepShown.caption) { sleepShown.caption = sleepEvent.caption; sleepEls.text.textContent = sleepEvent.caption; }
       const a = Math.round(sleepEvent.captionAlpha * 100) / 100;
       if (a !== sleepShown.alpha) { sleepShown.alpha = a; sleepEls.text.style.opacity = String(a); }
       world.setMorning(sleepEvent.morning);
       arms.group.visible = !sleepEvent.cameraOverride || sleepEvent.state === 'stand_up';
+      if (escort.ended && !endCardShown) { endCardShown = true; endCard.hidden = false; }
     }
 
     // Wärter und Tür am Gangende darstellen
     {
-      const dx = physics.x - guardEvent.x, dz = physics.z - guardEvent.z;
-      const lookYaw = wrapAngle(Math.atan2(dx, dz) - guardEvent.yaw);
+      const gs = escort.active ? escort : guardEvent;     // wer steuert gerade den Wärter und die Tür am Gangende?
+      const dx = physics.x - gs.x, dz = physics.z - gs.z;
+      const lookYaw = wrapAngle(Math.atan2(dx, dz) - gs.yaw);
       const lookPitch = Math.atan2(GUARD.headHeight - (physics.y + PLAYER.eye), Math.max(0.5, Math.hypot(dx, dz)));
-      world.setEndDoor(guardEvent.doorOpen);
+      world.setEndDoor(gs.doorOpen);
+      world.setCellGate(escort.gateOpen);
       guard.update(dt, {
-        x: guardEvent.x, z: guardEvent.z, yaw: guardEvent.yaw, visible: guardEvent.visible,
-        phase: guardEvent.phase, amp: guardEvent.amp,
-        talking: dialogueActive && dialogue.talking,
-        attention: guardEvent.state === 'arrive' || guardEvent.state === 'talk',
+        x: gs.x, z: gs.z, yaw: gs.yaw, visible: gs.visible,
+        phase: gs.phase, amp: gs.amp,
+        talking: !!(talk && talk.talking),
+        attention: gs.attention,
         time: now / 1000, lookYaw, lookPitch,
       });
     }

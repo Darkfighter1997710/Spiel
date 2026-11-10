@@ -248,7 +248,7 @@ try {
     const m = /rgba\(0,0,0,([\d.]+)\)/.exec(E('sleep-fade').style.background || '');
     if (m && parseFloat(m[1]) >= 0.99) sawBlack = true;
     if (E('sleep-text').textContent) captions.add(E('sleep-text').textContent);
-    if (E('hud').classList.has('sleeping')) sawLockedHud = true;
+    if (E('hud').classList.has('cutscene')) sawLockedHud = true;
     if (i === 30) {                                                  // mitten im Hinlegen: Steuerung gesperrt
       const p0 = lastCam();
       E('touch-layer').fire('pointerdown', { pointerId: 41, clientX: 150, clientY: 300 });
@@ -268,7 +268,7 @@ try {
   console.log(`Schlafen: Kamera lag im Bett, Bild wurde schwarz, Morgenlicht Helligkeit ${globalThis.__sun.intensity.toFixed(1)}, aufgestanden bei x=${ex.toFixed(2)} z=${ez.toFixed(2)}.`);
   ok(Math.abs(ex + 1.0) < 0.1 && Math.abs(ey - 1.65) < 0.1 && Math.abs(ez - 1.2) < 0.1, 'Nach dem Aufstehen nicht neben dem Bett');
   ok(E('btn-sleep').hidden === true && E('sleep-hint').hidden === true, 'Schlafen-Knopf/Hinweis nach dem Aufwachen noch da');
-  ok(!E('hud').classList.has('sleeping'), 'Spielknöpfe bleiben nach dem Aufwachen ausgeblendet');
+  ok(!E('hud').classList.has('cutscene'), 'Spielknöpfe bleiben nach dem Aufwachen ausgeblendet');
   ok(globalThis.__bgAtRender.every((v) => v === true), 'Hintergrundfarbe in der Szene (Zeichendurchgang löscht das Bild)');
 
   // Nach dem Aufwachen ist die Steuerung wieder frei
@@ -279,6 +279,51 @@ try {
   const q1 = lastCam();
   ok(Math.hypot(q1[0] - q0[0], q1[2] - q0[2]) > 0.3, 'Steuerung nach dem Aufwachen nicht frei');
   E('touch-layer').fire('pointerup', { pointerId: 50 });
+
+  // ---------- Abholen am Morgen ----------
+  ok(E('end-card').hidden === true, 'Endkarte schon vor dem Abholen sichtbar');
+  globalThis.location = { reload() { globalThis.__reloaded = true; } };
+  let waitFrames = 0;
+  while (!hudActive() && waitFrames++ < 3000) await frames(1);
+  ok(hudActive(), 'Der Wärter kommt am Morgen nicht zurück');
+  console.log(`Abholen: Wärter kommt zurück, Gespräch beginnt ${(waitFrames * 16.7 / 1000).toFixed(1)} s nach dem Aufstehen.`);
+  await frames(200);
+  ok(E('dialogue-speaker').textContent === 'Wärter' && E('dialogue-text').textContent.includes('Sonne'), `Morgen-Gespräch falsch: "${E('dialogue-text').textContent}"`);
+  const beforeEscort = lastCam();
+  E('touch-layer').fire('pointerdown', { pointerId: 60, clientX: 150, clientY: 300 });   // Steuerung ist gesperrt
+  E('touch-layer').fire('pointermove', { pointerId: 60, clientX: 150, clientY: 100 });
+  await frames(20);
+  ok(Math.hypot(lastCam()[0] - beforeEscort[0], lastCam()[2] - beforeEscort[2]) < 0.1, 'Spieler läuft selbst, obwohl der Wärter spricht');
+  E('touch-layer').fire('pointerup', { pointerId: 60 });
+  let guardTaps = 0;
+  while (hudActive() && guardTaps++ < 40) { E('dialogue-tap').fire('pointerdown', { pointerId: 61 }); await frames(8); }
+  ok(!hudActive(), 'Morgen-Gespräch endet nicht');
+
+  // Der Wärter führt ab: Kamera läuft selbst durch die Zellentür und den Gang entlang
+  let throughGate = false, maxFade = 0, cutsceneHud = false, handsVisibleErrors = 0, endFrames = 0;
+  const path = [];
+  while (E('end-card').hidden !== false && endFrames++ < 4000) {
+    await frames(1);
+    const c = lastCam(); path.push(c);
+    if (c[2] < -2.3 && c[2] > -2.6 && Math.abs(c[0]) < 0.1) throughGate = true;
+    const m = /rgba\(0,0,0,([\d.]+)\)/.exec(E('sleep-fade').style.background || '');
+    if (m) maxFade = Math.max(maxFade, parseFloat(m[1]));
+    if (E('hud').classList.has('cutscene')) cutsceneHud = true;
+  }
+  ok(E('end-card').hidden === false, 'Endkarte erscheint nicht');
+  ok(throughGate, 'Der Spieler geht nicht durch die Zellentür');
+  ok(maxFade >= 0.99, `Bild wird am Ende nicht schwarz (${maxFade})`);
+  ok(cutsceneHud, 'Spielknöpfe werden beim Abführen nicht ausgeblendet');
+  const [fx, fy, fz] = lastCam();
+  let maxStep = 0; for (let i = 1; i < path.length; i++) maxStep = Math.max(maxStep, Math.hypot(path[i][0] - path[i - 1][0], path[i][2] - path[i - 1][2]));
+  console.log(`Abführen: Spieler läuft durch die Tür bis z=${fz.toFixed(2)}, Bild wird schwarz, Endkarte erscheint (größter Schritt pro Bild ${maxStep.toFixed(3)} m).`);
+  ok(Math.abs(fx) < 0.1 && Math.abs(fz + 5.7) < 0.2, 'Spieler endet nicht im Gang vor der Endtür');
+  ok(maxStep < 0.05, 'Kamera springt beim Abführen');
+  ok(globalThis.__bgAtRender.every((v) => v === true), 'Hintergrundfarbe in der Szene');
+
+  // Endkarte: "Von vorn beginnen" lädt das Spiel neu
+  E('btn-restart').fire('click');
+  ok(globalThis.__reloaded === true, 'Knopf "Von vorn beginnen" lädt das Spiel nicht neu');
 
   // Einstellungen
   E('btn-settings').fire('click');

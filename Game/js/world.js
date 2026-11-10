@@ -167,11 +167,19 @@ export function createWorld(THREE, renderer) {
   function setEndDoor(amount) { endDoorPivot.rotation.y = -Math.max(0, Math.min(1, amount)) * 1.75; }
 
   // ---------- Gittertür aus dunklem Metall ----------
+  let gatePivotRef = null;
   {
     const zc = -D - WT / 2;
-    const gate = new THREE.Group();
-    group.add(gate);
     const hw = DOOR.halfW;
+    // Drehpunkt = linke Kante (Scharniere). Die Teile werden mit ihren echten Koordinaten gebaut; der innere
+    // Halter hebt die Verschiebung des Drehpunkts wieder auf, solange die Tür zu ist.
+    const gatePivot = new THREE.Group();
+    gatePivot.position.set(-hw, 0, zc);
+    group.add(gatePivot);
+    gatePivotRef = gatePivot;
+    const gate = new THREE.Group();
+    gate.position.set(hw, 0, -zc);
+    gatePivot.add(gate);
     // Rahmen
     boxMM(-hw, -hw + 0.07, 0, DOOR.height, zc - 0.045, zc + 0.045, M.iron, { ts: 0.5, parent: gate });
     boxMM(hw - 0.07, hw, 0, DOOR.height, zc - 0.045, zc + 0.045, M.iron, { ts: 0.5, parent: gate });
@@ -427,6 +435,14 @@ export function createWorld(THREE, renderer) {
   dust.frustumCulled = false;
   scene.add(dust);
 
+  // Zellentür: 0 = zu, 1 = ganz offen (schwingt nach außen in den Gang, ca. 95 Grad)
+  function setCellGate(amount) {
+    if (gatePivotRef) gatePivotRef.rotation.y = Math.max(0, Math.min(1, amount)) * 1.65;
+  }
+  // Die Schatten sind statisch (einmal berechnet). Nach einer Änderung an Schatten werfenden Teilen (Gittertür geöffnet)
+  // muss man sie einmal neu berechnen lassen.
+  function refreshShadows() { renderer.shadowMap.needsUpdate = true; }
+
   // ---------- Morgenlicht ----------
   // Die Sonne (mit Schatten der Gitterstäbe) wird erst gebraucht, wenn der Spieler geschlafen hat. Bis dahin spart das
   // Spiel das zusätzliche Licht. prepareMorning() wird aufgerufen, solange der Bildschirm schwarz ist (das Übersetzen der
@@ -515,6 +531,8 @@ export function createWorld(THREE, renderer) {
     spawn: SPAWN,
     textures: T,
     setEndDoor,
+    setCellGate,
+    refreshShadows,
     prepareMorning,
     setMorning,
     update,

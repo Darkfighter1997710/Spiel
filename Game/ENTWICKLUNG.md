@@ -5,10 +5,11 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 
 ## Stand
 
-* **Version 0.4.0:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
+* **Version 0.5.0:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
   Gehen/Sprinten/Springen, Physik und Kollisionen, symmetrische Wände, **Wärter-Auftritt mit Gespräch**
   (nach 15 s Spielzeit; er überbringt: morgen früh Hinrichtung, kein Ausweg, jetzt schlafen), **Schlafen im Bett**
-  und **Morgenlicht** in der Zelle.
+  und **Morgenlicht** in der Zelle, danach **holt der Wärter den Spieler ab** (öffnet die Zellentür, führt ihn durch den Gang,
+  Endkarte „Ende von Kapitel 1“). Das ist der aktuelle Schluss des Spiels; spätere Phasen setzen hier an.
 * **Fehler in 0.2/0.3 (behoben in 0.4):** Das Bild war komplett schwarz, weil die Szene eine Hintergrundfarbe hatte (siehe
   „Zeichendurchgänge").
 * **Nicht vorhanden (bewusst):** Monster, Waffen, Inventar, Quests, Ton. Der Wärter ist die einzige Figur und hat
@@ -41,6 +42,7 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 | `js/guard.js` | `createGuard`: Wärter-Figur aus einfachen Formen samt Animation (Gehen, Kopf folgt Spieler, Sprechen) |
 | `js/dialogue.js` | Gesprächstext (`GUARD_DIALOGUE`), `validateDialogue`, `DialogueRunner` (Schreibmaschine, Antippen, Antworten); **ohne Anzeige**, testbar |
 | `js/dialogue-ui.js` | zeigt ein Gespräch am Bildschirm (Textfeld, Antwort-Knöpfe) |
+| `js/escort-event.js` | `EscortEvent`: Wärter kommt am Morgen zurück, öffnet die Zellentür, führt den Spieler ab (**ohne Three.js**, testbar) |
 | `js/sleep-event.js` | `SleepEvent`: Ablauf des Schlafens (hinlegen, abdunkeln, Nacht, aufwachen, aufstehen); **ohne Three.js**, testbar |
 | `scripts/prepare-web.js` | kopiert alles nach `www/` für die Android-App (Capacitor) |
 | `tests/*.test.js` | automatische Prüfungen (`npm test`) |
@@ -89,6 +91,22 @@ dem Start, der ganze Auftritt dauert je nach Lesetempo ca. 30–60 s.
   Übersetzen der Licht-Programme nicht sichtbar ruckelt.
 * **Gespräch:** `GUARD_DIALOGUE` in dialogue.js. Auf **jedem** Weg: Hinrichtung morgen früh, es gibt keinen Ausweg, jetzt
   schlafen (Test `dialogue.test.js` prüft das und dass keine Fluchthinweise vorkommen).
+
+## Abholen am Morgen (Ende von Kapitel 1)
+
+* **Start:** `main.js` ruft `escort.begin()`, sobald `sleepEvent.done` (aufgewacht und aufgestanden). Nach 6 s Spielzeit (`startDelay`)
+  Ablauf: Tür am Gangende öffnet sich → Wärter geht zur Zellentür → schließt auf (0,9 s) → die Gittertür schwingt nach außen auf
+  (`world.setCellGate`, Drehpunkt links, ca. 95°) → kurzes Gespräch (`ESCORT_DIALOGUE`, 2 Sprechblasen, ohne Antworten) →
+  Wärter dreht sich um und geht den Gang entlang → der Spieler **folgt automatisch** → Wärter verschwindet in der dunklen Nische
+  → Bild wird schwarz → Endkarte (`#end-card`) mit Knopf „Von vorn beginnen“ (lädt die Seite neu).
+* **Eingaben gesperrt** ab `unlock` bis zum Ende. Die Kamera schaut den Wärter an (`cameraLook`), danach folgt sie dem Weg
+  (`cameraOverride`, gleiche Override-Stelle wie beim Schlafen in `updateCamera`; `cam.phase/amp` kommen vom Ablauf, damit
+  Kopfwippen und Armschwung mitlaufen).
+* **Weg:** Linienzug Spielerposition → (0, min(z, −1,4)) → Gang bis zur Nische. Der Wärter wartet an der Tür, bis der Spieler
+  `gap` = 1,6 m nah ist, und hält dann genau diesen Abstand vor ihm. Kamera dreht höchstens ca. 143°/s.
+* **Wichtig für spätere Phasen:** Der Kollisionskörper `tuer` (layout.js) bleibt auch bei geöffneter Zellentür bestehen. Das ist
+  im Moment egal (der Spieler wird geführt, nicht gesteuert), muss aber geändert werden, sobald man die Zelle selbst verlassen darf.
+  Nach einer Änderung an Schatten werfenden Teilen (Tür offen) wird `world.refreshShadows()` aufgerufen (Schatten sind statisch).
 
 ## Zeichendurchgänge (wichtig, hier ging in 0.2/0.3 etwas schief)
 
@@ -139,9 +157,10 @@ Tür in der vorderen Wand (z = −2,2), Gang dahinter nur sichtbar. Spawn (0,4 /
 | `build.smoke.test.js` | Aufbau von Texturen und Welt läuft ohne Programmfehler (Three.js/Canvas als Attrappe) |
 | `dialogue.test.js` | Gespräch: Verweise, Schleifenfreiheit, alle 9 Wege enden, Schreibmaschine, Antippen, Antworten, Textlängen |
 | `guard-event.test.js` | Zeitplan: zählt nur Spielzeit, 15 s, Reihenfolge der Zustände, Sperre nur im Gespräch, Pause, Zufallsläufe |
+| `escort-event.test.js` | Abholen: Reihenfolge, Wärter immer vor dem Spieler mit festem Abstand, Spieler läuft mittig durch die Tür, nie durch Wände, von 6 verschiedenen Startstellen, Kamera ohne Sprünge, Pause, Zufallsläufe |
 | `sleep-event.test.js` | Schlafen: Reihenfolge, Morgenlicht steigt gleichmäßig, Abdunkeln vor dem Vorbereiten des Lichts, Kamera ohne Sprünge, kurzer Drehweg, Pause, Zufallsläufe |
 | `guard.test.js` | Wärter-Animation: Beine gegengleich, Kopf folgt und ist begrenzt, Mund beim Sprechen, Zufalls-Dauertest |
-| `game.integration.test.js` | echtes `main.js` mit Attrappen: Start, Joystick, Sprint gegen Tür, Sprung, Zeichenreihenfolge, **Wärter erscheint nicht vor 15 s, Gespräch komplett durchgespielt, Steuerung gesperrt und danach wieder frei, zum Bett gehen, Schlafen (Kamera liegt, Bild schwarz, Texte, Sonnenlicht erst jetzt), Aufstehen, keine Hintergrundfarbe in der Szene**, Einstellungen |
+| `game.integration.test.js` | echtes `main.js` mit Attrappen: Start, Joystick, Sprint gegen Tür, Sprung, Zeichenreihenfolge, **Wärter erscheint nicht vor 15 s, Gespräch komplett durchgespielt, Steuerung gesperrt und danach wieder frei, zum Bett gehen, Schlafen (Kamera liegt, Bild schwarz, Texte, Sonnenlicht erst jetzt), Aufstehen, keine Hintergrundfarbe in der Szene**, Einstellungen; **Rückkehr des Wärters am Morgen, Gespräch, Abführen durch die Tür, schwarzes Bild, Endkarte, Neustart-Knopf** |
 
 ## Teststatus: was NICHT geprüft ist
 
@@ -149,6 +168,7 @@ Tür in der vorderen Wand (z = −2,2), Gang dahinter nur sichtbar. Spawn (0,4 /
   Gesprächsfeld**): kein Browser/keine Grafikkarte in der Entwicklungsumgebung. Lichtwerte sind geschätzt (daher der
   Helligkeitsregler). Ob der Wärter im Gang gut ausgeleuchtet und gut lesbar ist, ist unbekannt.
 * **Morgenlicht** (ob Sonnenfleck, Gitterschatten und Lichtstrahl gut aussehen, ob die Zelle „hell genug“ wirkt; Helligkeitswerte `MORNING_SUN`/`MORNING_AMBIENT` oben in world.js sind geschätzt) und der Ruckler beim ersten Erzeugen des Sonnenlichts auf schwachen Handys.
+* **Abführen** (Aussehen der aufschwingenden Gittertür, der Kamerafahrt durch den Gang, Tempo, ob das Schwarzwerden und die Endkarte stimmig wirken).
 * **Gefühl des Auftritts** (Tempo, Kamerafahrt zum Wärter, Lesbarkeit des Textes auf dem Handy).
 * **Echtes Handy** (Bildrate, Gefühl der Steuerung, Vollbild, Querformat-Sperre).
 * **Echte Three.js-Bibliothek:** Tests nutzen eine Attrappe; Aufrufe wurden nach bestem Wissen für r170 geschrieben.

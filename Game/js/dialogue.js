@@ -71,6 +71,23 @@ export const GUARD_DIALOGUE = Object.freeze({
   },
 });
 
+// Am Morgen: Der Wärter holt den Spieler ab. Kurz, ohne Antwortmöglichkeit.
+export const ESCORT_DIALOGUE = Object.freeze({
+  start: 'k1',
+  nodes: {
+    k1: {
+      speaker: SPEAKER_GUARD,
+      text: 'Die Sonne ist aufgegangen. Es ist so weit.',
+      next: 'k2',
+    },
+    k2: {
+      speaker: SPEAKER_GUARD,
+      text: 'Steh gerade und komm mit. Mach es uns beiden nicht schwerer.',
+      next: null,
+    },
+  },
+});
+
 // Prüft ein Gespräch auf Fehler: alle Verweise gültig, nichts unerreichbar, keine Endlosschleifen.
 // Gibt eine Liste von Problemen zurück (leer = in Ordnung).
 export function validateDialogue(data) {
