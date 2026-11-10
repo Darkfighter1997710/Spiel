@@ -108,5 +108,25 @@ for (const [dx, dz] of dirs) {
   ok(maxY < TABLE.top - 0.02, 'Auf den Tisch gelangt, obwohl zu hoch');
 }
 
+// 7) Teleport (Aufstehen nach dem Schlafen): mitten aus dem Sprung an eine feste Stelle, danach ruhig und gültig
+{
+  const pl = fresh(0.4, 0.0);
+  pl.setInput(0, 1, true, 0); pl.queueJump();
+  for (let i = 0; i < 20; i++) pl.step(1 / 90);
+  ok(!pl.grounded, 'Test-Vorbereitung: sollte in der Luft sein');
+  pl.teleport(-1.0, 1.2);
+  ok(pl.x === -1.0 && pl.z === 1.2 && pl.y === 0 && pl.grounded && pl.vx === 0 && pl.vy === 0, 'Teleport setzt nicht sauber');
+  checkInvariants(pl, 'teleport');
+  pl.setInput(0, 0, false, 0);
+  for (let i = 0; i < 90; i++) { pl.step(1 / 90); checkInvariants(pl, 'nach-teleport'); }
+  ok(Math.abs(pl.x + 1.0) < 1e-6 && Math.abs(pl.z - 1.2) < 1e-6 && pl.y === 0, 'Figur driftet nach dem Teleport');
+  // Teleport in die Wand/aufs Bett wird korrigiert statt verschluckt
+  pl.teleport(-9, 9);
+  checkInvariants(pl, 'teleport-außerhalb');
+  pl.teleport(-2.0, 1.2);   // mitten auf das Bett: steht dann auf dem Bett (höchste Fläche), nicht darin
+  ok(pl.y === BED.top || pl.y === 0, `Teleport aufs Bett: y=${pl.y}`);
+  checkInvariants(pl, 'teleport-aufs-bett');
+}
+
 console.log(failures === 0 ? '\nALLE PHYSIK-TESTS BESTANDEN' : `\n${failures} FEHLER`);
 process.exit(failures === 0 ? 0 : 1);

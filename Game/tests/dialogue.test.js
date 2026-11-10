@@ -54,14 +54,33 @@ for (const [id, n] of Object.entries(GUARD_DIALOGUE.nodes)) {
     while (!r.finished && guard++ < 100) {
       reached.add(r.node.id);
       r.update(100);
-      if (r.hasChoices) { r.choose(choicesTaken[i++] ?? 0); } else r.tap();
+      if (r.hasChoices) { r.choose((choicesTaken[i++] ?? 0) % r.node.choices.length); } else r.tap();
     }
     ok(r.finished, `Weg ${JSON.stringify(choicesTaken)} endet nicht`);
     return i;
   };
-  for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) { walk([a, b]); paths++; }
+  for (let a = 0; a < 3; a++) for (let b = 0; b < 2; b++) { walk([a, b]); paths++; }
   ok(reached.size === Object.keys(GUARD_DIALOGUE.nodes).length, `nicht alle Knoten erreichbar: ${reached.size}`);
   console.log(`Gespräch: ${Object.keys(GUARD_DIALOGUE.nodes).length} Sprechblasen, ${paths} verschiedene Wege, alle enden.`);
+}
+
+// 4b) Auf JEDEM Weg kommen die drei Kernaussagen vor: Hinrichtung morgen, kein Ausweg, jetzt schlafen
+{
+  const allPaths = [];
+  const explore = (id, acc) => {
+    const n = GUARD_DIALOGUE.nodes[id];
+    const text = acc + ' ' + n.text;
+    const nexts = n.choices ? n.choices.map((c) => c.next) : [n.next];
+    for (const nx of nexts) { if (nx === null) allPaths.push(text); else explore(nx, text); }
+  };
+  explore(GUARD_DIALOGUE.start, '');
+  for (const t of allPaths) {
+    ok(/Hinrichtung/.test(t) && /morgen|Morgen/.test(t), 'Hinrichtung morgen fehlt auf einem Weg');
+    ok(/Ausweg/.test(t), 'Kein-Ausweg-Aussage fehlt auf einem Weg');
+    ok(/schlaf/i.test(t), 'Aufforderung zu schlafen fehlt auf einem Weg');
+    ok(!/Wache gewechselt|Flucht|entkomm|fliehen|Schlüssel/i.test(t), 'Hoffnung/Fluchthinweis im Gespräch, obwohl es keinen Ausweg geben soll');
+  }
+  console.log(`Inhalt: Hinrichtung, kein Ausweg und Schlafen kommen auf allen ${allPaths.length} Wegen vor, ohne Fluchthinweise.`);
 }
 
 // 5) Nach dem Ende passiert nichts mehr

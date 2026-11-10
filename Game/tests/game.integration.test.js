@@ -1,8 +1,7 @@
 // Integrationstest: startet das echte Spiel (main.js + alle Module) mit simuliertem Bildschirm und Fingern.
 //   node tests/game.integration.test.js
 // Three.js ist dabei eine Attrappe (die echte Bibliothek ist für den Test nicht nötig). Geprüft werden Ablauf
-// und Zusammenspiel: Start, Joystick, Sprint gegen die Tür, Sprung, Arme, zwei Zeichendurchgänge, Wärter-Gespräch,
-// Schlafen im Bett mit Sonnenaufgang, Einstellungen.
+// und Zusammenspiel: Start, Joystick, Sprint gegen die Tür, Sprung, Arme, zwei Zeichendurchgänge, Einstellungen.
 // NICHT geprüft werden kann, wie das Spiel aussieht oder wie es sich auf einem Handy anfühlt.
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,7 +16,7 @@ cpSync(root, tmp, { recursive: true, filter: (src) => !src.includes('node_module
 const sources = [join(tmp, 'main.js'), ...readdirSync(join(tmp, 'js')).map((f) => join(tmp, 'js', f))];
 const names = new Set();
 for (const f of sources) for (const m of readFileSync(f, 'utf8').matchAll(/THREE\.([A-Za-z0-9_]+)/g)) names.add(m[1]);
-const special = new Set(['PerspectiveCamera', 'WebGLRenderer', 'REVISION', 'SpotLight', 'Scene']);
+const special = new Set(['PerspectiveCamera', 'WebGLRenderer', 'DirectionalLight', 'REVISION']);
 const isConst = (n) => /(Mapping|ColorSpace|Blending|Wrapping|ShadowMap)$/.test(n);
 let stub = `
 const generic = (name) => {
@@ -41,32 +40,26 @@ export class PerspectiveCamera {
   constructor() {
     this.fov = 72; this.aspect = 1;
     this.layers = { n: 0, set(n) { this.n = n; } };
-    this.rotation = { order: '', set: (p, y, r) => globalThis.__rotLog.push([p, y, r]) };
+    this.rotation = { order: '', set() {} };
     this.position = { set: (x, y, z) => globalThis.__camLog.push([x, y, z]) };
   }
   add() {} updateProjectionMatrix() {}
 }
-// Sonnenlicht: der Test merkt sich das Objekt, um die Helligkeit lesen zu können
-export class SpotLight { constructor() { const g = generic('spot'); globalThis.__sun = g; return g; } }
-export class Scene {
-  constructor() { this.background = null; this.fog = null; }
-  add() {} traverse() {}
+export class DirectionalLight {
+  constructor() {
+    this.intensity = 0;
+    this.position = { set() {}, copy() {} };
+    this.target = { position: { copy() {}, set() {} } };
+    this.shadow = { mapSize: { set() {} }, camera: { updateProjectionMatrix() {} } };
+    this.layers = { enable() {} };
+    globalThis.__sun = this;   // der Test prüft, wann das Sonnenlicht entsteht und wie hell es wird
+  }
 }
 export class WebGLRenderer {
-  constructor() {
-    this.capabilities = { getMaxAnisotropy: () => 8, maxTextures: 16, maxTextureSize: 4096, maxFragmentUniforms: 221, maxVaryings: 15, precision: 'highp' };
-    this.shadowMap = {};
-    this.info = { render: { calls: 12, triangles: 345 }, programs: [1, 2, 3], memory: { textures: 4, geometries: 5 } };
-  }
-  getContext() { return { getExtension: () => null, getParameter: () => 'Testgrafik', RENDERER: 1 }; }
-  setPixelRatio() {} setSize() {} compile() {} setClearColor() {} clear() { globalThis.__renders.push('C'); }
+  constructor() { this.capabilities = { getMaxAnisotropy: () => 8 }; this.shadowMap = {}; }
+  setPixelRatio() {} setSize() {} setClearColor() {} compile() {} clear() { globalThis.__renders.push('C'); }
   clearDepth() { globalThis.__renders.push('D'); }
-  // Wie die echte Bibliothek: Ist eine Hintergrundfarbe an der Szene gesetzt, löscht JEDES render() den Bildschirm
-  // (auch bei autoClear = false). Das Spiel zeichnet zweimal pro Bild (Welt, Arme) – der zweite Durchgang würde die Welt wegwischen.
-  render(scene, camera) {
-    if (scene.background !== null && scene.background !== undefined) globalThis.__renders.push('F');
-    globalThis.__renders.push(camera.layers.n);
-  }
+  render(scene, camera) { globalThis.__renders.push(camera.layers.n); globalThis.__bgAtRender.push(scene.background === null); }
   addEventListener() {}
 }
 `;
@@ -78,8 +71,8 @@ writeFileSync(join(tmp, 'libs', 'three.module.min.js'), stub);
 
 // ---- simulierter Bildschirm ----
 globalThis.__camLog = [];
-globalThis.__rotLog = [];
 globalThis.__renders = [];
+globalThis.__bgAtRender = [];
 const ctx = new Proxy({}, {
   get(t, p) {
     if (p === 'getImageData') return (x, y, w, h) => ({ data: new Uint8ClampedArray(w * h * 4) });
@@ -130,15 +123,6 @@ async function frames(n) { for (let i = 0; i < n; i++) { const cb = rafCb; rafCb
 const E = (id) => elements[id];
 const lastCam = () => globalThis.__camLog[globalThis.__camLog.length - 1];
 
-// Die Versionsnummer muss in package.json, main.js und index.html übereinstimmen (Schutz vor veraltetem Browser-Zwischenspeicher)
-{
-  const pkgVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version;
-  const mainVersion = (readFileSync(join(root, 'main.js'), 'utf8').match(/const VERSION = '([^']+)'/) || [])[1];
-  const htmlVersions = [...indexHtml.matchAll(/\?v=([0-9.]+)/g)].map((m) => m[1]);
-  ok(pkgVersion === mainVersion, `Versionsnummer: package.json ${pkgVersion} ≠ main.js ${mainVersion}`);
-  ok(htmlVersions.length === 2 && htmlVersions.every((v) => v === pkgVersion), `Versionsnummer in index.html passt nicht: ${htmlVersions.join(', ')} (erwartet ${pkgVersion})`);
-}
-
 try {
   await import(pathToFileURL(join(tmp, 'main.js')).href);   // das Spiel "starten"
   for (let i = 0; i < 6; i++) await tick();
@@ -155,25 +139,11 @@ try {
   // Pro Bild: zuerst löschen, dann Welt (Ebene 0), dann Tiefe löschen, dann Arme (Ebene 1)
   const r = globalThis.__renders.slice(-4);
   ok(JSON.stringify(r) === JSON.stringify(['C', 0, 'D', 1]), `Zeichenreihenfolge falsch: ${JSON.stringify(r)}`);
-  ok(!globalThis.__renders.includes('F'), 'Szenen-Hintergrundfarbe gesetzt: der zweite Durchgang (Arme) löscht die Welt weg (nur Arme sichtbar)');
 
-  ok(/^Version \d+\.\d+\.\d+ · Three\.js/.test(E('engine-info').textContent), `Startbildschirm zeigt keine Versionsnummer: "${E('engine-info').textContent}"`);
+  // Regressionstest: Mit Hintergrundfarbe in der Szene löscht Three.js bei JEDEM Durchgang das Bild -> alles schwarz
+  ok(globalThis.__bgAtRender.length > 0 && globalThis.__bgAtRender.every((v) => v === true), 'Szene hat eine Hintergrundfarbe: zweiter Durchgang würde die Welt wegwischen');
 
-  // Diagnose-Anzeige: aus; einschalten zeigt Zahlen; Test-Schalter ändern Renderer/Welt ohne Fehler
-  ok(E('debug-box').hidden === true, 'Diagnose-Anzeige ist ohne Einschalten sichtbar');
   E('start-btn').fire('click');
-  E('diag').checked = true; E('diag').fire('change');
-  ok(E('debug-box').hidden === false, 'Diagnose-Anzeige lässt sich nicht einschalten');
-  await frames(40);
-  const dbgText = E('debug-text').textContent;
-  ok(/Welt: 12 Aufrufe, 345 Dreiecke/.test(dbgText) && /Arme: 12 Aufrufe/.test(dbgText) && /Testgrafik/.test(dbgText) && /Version \d/.test(dbgText), `Diagnose-Text unvollständig:\n${dbgText}`);
-  ok(!dbgText.includes('undefined') && !dbgText.includes('NaN'), `Diagnose-Text enthält ungültige Werte:\n${dbgText}`);
-  E('dbg-shadow').fire('click'); E('dbg-fog').fire('click'); E('dbg-bright').fire('click');
-  ok(E('dbg-shadow').textContent === 'Schatten: aus' && E('dbg-fog').textContent === 'Nebel: aus' && E('dbg-bright').textContent === 'Testlicht: an', 'Test-Schalter ändern ihre Beschriftung nicht');
-  E('dbg-shadow').fire('click'); E('dbg-fog').fire('click'); E('dbg-bright').fire('click');
-  ok(E('dbg-shadow').textContent === 'Schatten: an' && E('dbg-bright').textContent === 'Testlicht: aus', 'Test-Schalter lassen sich nicht zurücknehmen');
-  E('diag').checked = false; E('diag').fire('change');
-  ok(E('debug-box').hidden === true, 'Diagnose-Anzeige lässt sich nicht ausschalten');
   ok(E('start-screen').hidden === true && E('hud').hidden === false, 'Start blendet Menü nicht aus');
 
   // Joystick links nach oben + Sprint halten -> gegen die Tür laufen
@@ -235,7 +205,7 @@ try {
   while (hudActive() && steps++ < 400) {
     spokenLines.add(E('dialogue-text').textContent);
     const kids = E('dialogue-choices').children;
-    if (kids.length > 0) { choicesSeen++; ok(kids.length === 3, 'es sollten 3 Antworten da sein'); kids[1].fire('click'); await frames(3); }
+    if (kids.length > 0) { choicesSeen++; ok(kids.length === 2 || kids.length === 3, `unerwartete Anzahl Antworten: ${kids.length}`); kids[1].fire('click'); await frames(3); }
     else { E('dialogue-tap').fire('pointerdown', { pointerId: 20 }); await frames(8); }
   }
   ok(!hudActive() && E('dialogue').hidden === true, 'Gespräch endet nicht');
@@ -254,90 +224,61 @@ try {
   await frames(400);                                                // Wärter verschwindet, Tür schließt sich
   ok(!hudActive() && !(E('error-box') && E('error-box').hidden === false), 'Fehler nach dem Auftritt');
 
-  // ---------- Schlafen im Bett ----------
-  const rot = () => globalThis.__rotLog[globalThis.__rotLog.length - 1];
-  const sun = () => globalThis.__sun.intensity;
-  const fadeOpacity = () => Number(E('sleep-fade').style.opacity || 0);
-  ok(E('btn-sleep').hidden === true, 'Schlafen-Knopf ist weit weg vom Bett sichtbar');
-  ok(E('sleep-hint').hidden === false, 'Hinweis „Geh zum Bett“ erscheint nach dem Wärter nicht');
-  ok(sun() === 0, `Sonne scheint schon vor dem Schlafen (Helligkeit ${sun()})`);
+  // ---------- Schlafen ----------
+  ok(E('sleep-hint').hidden === false, 'Hinweis "Geh zum Bett" fehlt nach dem Gespräch');
+  ok(E('btn-sleep').hidden === true, 'Schlafen-Knopf erscheint, obwohl das Bett weit weg ist');
+  ok(globalThis.__sun === undefined, 'Sonnenlicht existiert schon vor dem Schlafen (kostet unnötig Leistung)');
 
-  // zum Bett laufen (Ziel: neben der Bettkante, 0,3 m davor)
-  async function walkTo(tx, tz) {
-    E('touch-layer').fire('pointerdown', { pointerId: 40, clientX: 150, clientY: 300 });
-    for (let i = 0; i < 300; i++) {
-      const [x, , z] = lastCam();
-      let wx = tx - x, wz = tz - z;
-      const d = Math.hypot(wx, wz);
-      if (d < 0.12) break;
-      wx /= d; wz /= d;
-      const sy = Math.sin(rot()[1]), cy = Math.cos(rot()[1]);
-      const inX = cy * wx - sy * wz, inZ = -(sy * wx + cy * wz);
-      E('touch-layer').fire('pointermove', { pointerId: 40, clientX: 150 + inX * 100, clientY: 300 - inZ * 100 });
-      await frames(2);
-    }
-    E('touch-layer').fire('pointerup', { pointerId: 40 });
-    await frames(30);
-  }
-  await walkTo(-1.2, 1.0);
-  const [bx, , bz] = lastCam();
-  console.log(`Am Bett angekommen: x=${bx.toFixed(2)} z=${bz.toFixed(2)}`);
-  ok(E('btn-sleep').hidden === false, 'Schlafen-Knopf erscheint am Bett nicht');
+  // zum Bett gehen (Joystick nach links = seitwärts Richtung Bett)
+  E('touch-layer').fire('pointerdown', { pointerId: 40, clientX: 150, clientY: 300 });
+  E('touch-layer').fire('pointermove', { pointerId: 40, clientX: 90, clientY: 300 });
+  await frames(70);
+  E('touch-layer').fire('pointerup', { pointerId: 40 });
+  await frames(5);
+  ok(E('btn-sleep').hidden === false, 'Schlafen-Knopf erscheint nicht am Bett');
   ok(E('sleep-hint').hidden === true, 'Hinweis bleibt am Bett stehen');
 
   E('btn-sleep').fire('click');
-  await frames(2);
-  ok(E('btn-sleep').hidden === true && E('hud').classList.has('sleeping'), 'Schlafen startet nicht (Knopf/Sperre)');
-
-  // Während des Schlafens sind Eingaben gesperrt, es wird schwarz, dann liegt die Kamera im Bett
-  E('touch-layer').fire('pointerdown', { pointerId: 41, clientX: 150, clientY: 300 });
-  E('touch-layer').fire('pointermove', { pointerId: 41, clientX: 150, clientY: 100 });
-  let sawBlack = false, caption1 = '', caption2 = '', sunWhileBlack = null;
-  for (let i = 0; i < 900 && !(sawBlack && fadeOpacity() < 0.99 && i > 0 && E('sleep-caption').textContent !== caption1 && caption2); i++) {
+  let sawLying = false, sawBlack = false, sawLockedHud = false;
+  const captions = new Set();
+  for (let i = 0; i < 800; i++) {
     await frames(1);
-    if (fadeOpacity() > 0.99) {
-      sawBlack = true;
-      if (!caption1) caption1 = E('sleep-caption').textContent;
-      if (E('sleep-caption').textContent !== caption1) caption2 = E('sleep-caption').textContent;
-      sunWhileBlack = sun();
+    const c = lastCam();
+    if (Math.abs(c[0] + 2.0) < 0.05 && Math.abs(c[1] - 0.82) < 0.05 && Math.abs(c[2] - 1.7) < 0.05) sawLying = true;
+    const m = /rgba\(0,0,0,([\d.]+)\)/.exec(E('sleep-fade').style.background || '');
+    if (m && parseFloat(m[1]) >= 0.99) sawBlack = true;
+    if (E('sleep-text').textContent) captions.add(E('sleep-text').textContent);
+    if (E('hud').classList.has('sleeping')) sawLockedHud = true;
+    if (i === 30) {                                                  // mitten im Hinlegen: Steuerung gesperrt
+      const p0 = lastCam();
+      E('touch-layer').fire('pointerdown', { pointerId: 41, clientX: 150, clientY: 300 });
+      E('touch-layer').fire('pointermove', { pointerId: 41, clientX: 150, clientY: 100 });
+      await frames(3);
+      const p1 = lastCam();
+      ok(Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) < 0.2, 'Joystick bewegt die Kamera während des Hinlegens');
+      E('touch-layer').fire('pointerup', { pointerId: 41 });
     }
-    if (fadeOpacity() > 0.99 && caption2) break;
   }
-  ok(sawBlack, 'Bildschirm wird beim Schlafen nicht schwarz');
-  ok(caption1 === 'Du schläfst ein …' && caption2 === 'Am nächsten Morgen …', `Texte beim Schlafen: "${caption1}" / "${caption2}"`);
-  ok(sunWhileBlack === 0, `Sonne schon vor dem Aufwachen an (${sunWhileBlack})`);
-  const lie = lastCam();
-  console.log(`Im Bett: Kamera x=${lie[0].toFixed(2)} y=${lie[1].toFixed(2)} z=${lie[2].toFixed(2)}`);
-  ok(Math.abs(lie[0] + 2.0) < 0.05 && Math.abs(lie[1] - 0.72) < 0.05 && Math.abs(lie[2] - 1.8) < 0.05, 'Kamera liegt nicht auf dem Kissen');
-  ok(E('hud').classList.has('sleeping'), 'Eingaben während des Schlafens nicht gesperrt');
+  ok(sawLying, 'Kamera liegt nie im Bett');
+  ok(sawBlack, 'Bild wird beim Schlafen nie ganz schwarz');
+  ok(sawLockedHud, 'Spielknöpfe werden beim Schlafen nicht ausgeblendet');
+  ok(['Du schläfst ein …', 'Die Nacht vergeht …', 'Der Morgen ist gekommen.'].every((t) => captions.has(t)), `Texte beim Schlafen unvollständig: ${[...captions].join(' | ')}`);
+  ok(globalThis.__sun && globalThis.__sun.intensity > 10, `Morgenlicht fehlt oder zu schwach (${globalThis.__sun && globalThis.__sun.intensity})`);
+  const [ex, ey, ez] = lastCam();
+  console.log(`Schlafen: Kamera lag im Bett, Bild wurde schwarz, Morgenlicht Helligkeit ${globalThis.__sun.intensity.toFixed(1)}, aufgestanden bei x=${ex.toFixed(2)} z=${ez.toFixed(2)}.`);
+  ok(Math.abs(ex + 1.0) < 0.1 && Math.abs(ey - 1.65) < 0.1 && Math.abs(ez - 1.2) < 0.1, 'Nach dem Aufstehen nicht neben dem Bett');
+  ok(E('btn-sleep').hidden === true && E('sleep-hint').hidden === true, 'Schlafen-Knopf/Hinweis nach dem Aufwachen noch da');
+  ok(!E('hud').classList.has('sleeping'), 'Spielknöpfe bleiben nach dem Aufwachen ausgeblendet');
+  ok(globalThis.__bgAtRender.every((v) => v === true), 'Hintergrundfarbe in der Szene (Zeichendurchgang löscht das Bild)');
 
-  // Aufwachen: Bild wird hell, Sonne geht auf
-  let sunMid = 0;
-  for (let i = 0; i < 900 && fadeOpacity() > 0.02; i++) { await frames(1); sunMid = Math.max(sunMid, sun()); }
-  ok(fadeOpacity() <= 0.02, 'Schwarz blendet nicht wieder aus');
-  ok(sunMid > 0, 'Sonne geht beim Aufwachen nicht auf');
-  for (let i = 0; i < 900 && E('hud').classList.has('sleeping'); i++) await frames(1);
-  ok(!E('hud').classList.has('sleeping'), 'Sperre endet nicht');
-  await frames(5);
-  const up = lastCam();
-  console.log(`Nach dem Schlafen: Sonne ${sun()} (von 140), Kamera y=${up[1].toFixed(2)}`);
-  ok(Math.abs(sun() - 140) < 1e-6, `Sonne nicht auf voller Helligkeit (${sun()})`);
-  ok(Math.abs(up[1] - 1.65) < 0.12 && Math.abs(up[0] - bx) < 0.1, 'Kamera steht nach dem Aufstehen nicht wieder am alten Platz');
-  ok(E('sleep-fade').hidden === true && E('sleep-caption').textContent === '', 'Schwarzblende bleibt sichtbar');
-
-  // Danach: Steuerung wieder frei, Licht bleibt, Schlafen gibt es nicht zweimal
-  E('touch-layer').fire('pointerup', { pointerId: 41 });
-  await frames(30);
-  const bedPos = lastCam();
-  E('touch-layer').fire('pointerdown', { pointerId: 42, clientX: 150, clientY: 300 });
-  E('touch-layer').fire('pointermove', { pointerId: 42, clientX: 150, clientY: 100 });
-  await frames(60);
-  E('touch-layer').fire('pointerup', { pointerId: 42 });
-  const moved = Math.hypot(lastCam()[0] - bedPos[0], lastCam()[2] - bedPos[2]);
-  ok(moved > 0.3, 'Steuerung nach dem Schlafen nicht frei');
-  await walkTo(-1.2, 1.0);
-  ok(E('btn-sleep').hidden === true, 'Schlafen-Knopf erscheint ein zweites Mal');
-  ok(Math.abs(sun() - 140) < 1e-6, 'Tageslicht geht wieder weg');
+  // Nach dem Aufwachen ist die Steuerung wieder frei
+  const q0 = lastCam();
+  E('touch-layer').fire('pointerdown', { pointerId: 50, clientX: 150, clientY: 300 });
+  E('touch-layer').fire('pointermove', { pointerId: 50, clientX: 150, clientY: 240 });
+  await frames(40);
+  const q1 = lastCam();
+  ok(Math.hypot(q1[0] - q0[0], q1[2] - q0[2]) > 0.3, 'Steuerung nach dem Aufwachen nicht frei');
+  E('touch-layer').fire('pointerup', { pointerId: 50 });
 
   // Einstellungen
   E('btn-settings').fire('click');

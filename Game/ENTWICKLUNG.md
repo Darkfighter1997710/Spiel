@@ -5,10 +5,12 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 
 ## Stand
 
-* **Version 0.4.2:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
+* **Version 0.4.0:** Zelle, Ich-Perspektive mit Armen/Händen, dynamischer Joystick, Kamera-Wischen,
   Gehen/Sprinten/Springen, Physik und Kollisionen, symmetrische Wände, **Wärter-Auftritt mit Gespräch**
-  (nach 15 s Spielzeit; er kündigt die Hinrichtung für morgen an und schickt den Spieler schlafen),
-  **Schlafen im Bett mit Sonnenaufgang** (danach ist die Zelle durch das Fenster hell).
+  (nach 15 s Spielzeit; er überbringt: morgen früh Hinrichtung, kein Ausweg, jetzt schlafen), **Schlafen im Bett**
+  und **Morgenlicht** in der Zelle.
+* **Fehler in 0.2/0.3 (behoben in 0.4):** Das Bild war komplett schwarz, weil die Szene eine Hintergrundfarbe hatte (siehe
+  „Zeichendurchgänge").
 * **Nicht vorhanden (bewusst):** Monster, Waffen, Inventar, Quests, Ton. Der Wärter ist die einzige Figur und hat
   keine Spielmechanik (kein Kampf, keine Belohnung); sein Gespräch ist reine Geschichte.
 * Spielt als GitHub Pages: `https://darkfighter1997710.github.io/Spiel/Game/`.
@@ -36,11 +38,10 @@ aufbaut. Sie wird bei jeder Phase mit aktualisiert.
 | `js/world.js` | baut Zelle, Möbel, Gittertür, Fackel, Licht, Gang, Staub; liefert `scene`, `colliders`, `bounds`, `spawn`, `textures`, `update(t)` |
 | `js/arms.js` | `createArms`: Arme und Hände an der Kamera samt Animation |
 | `js/guard-event.js` | `GuardEvent`: Zeitplan des Wärter-Auftritts (Zustandsautomat, **ohne Three.js**, testbar) |
-| `js/sleep-event.js` | `SleepEvent`: Ablauf „Schlafen“ (Zustandsautomat, **ohne Three.js**, testbar): Schwarzblende, liegen, aufwachen, Tageslicht |
-| `js/debug.js` | Diagnose-Anzeige: Fehlersammler (`captureErrors`), Grafikkartenname, Textaufbereitung (`formatDebug`); ohne Three.js, testbar |
 | `js/guard.js` | `createGuard`: Wärter-Figur aus einfachen Formen samt Animation (Gehen, Kopf folgt Spieler, Sprechen) |
 | `js/dialogue.js` | Gesprächstext (`GUARD_DIALOGUE`), `validateDialogue`, `DialogueRunner` (Schreibmaschine, Antippen, Antworten); **ohne Anzeige**, testbar |
 | `js/dialogue-ui.js` | zeigt ein Gespräch am Bildschirm (Textfeld, Antwort-Knöpfe) |
+| `js/sleep-event.js` | `SleepEvent`: Ablauf des Schlafens (hinlegen, abdunkeln, Nacht, aufwachen, aufstehen); **ohne Three.js**, testbar |
 | `scripts/prepare-web.js` | kopiert alles nach `www/` für die Android-App (Capacitor) |
 | `tests/*.test.js` | automatische Prüfungen (`npm test`) |
 
@@ -68,41 +69,35 @@ dem Start, der ganze Auftritt dauert je nach Lesetempo ca. 30–60 s.
   Leichte Eigenhelligkeit, damit er im Gang nicht schwarz wirkt.
 * **Anpassen:** Wartezeit und Tempo in `GUARD_EVENT` (guard-event.js), Weg in `GUARD` (layout.js), Text in
   `GUARD_DIALOGUE` (dialogue.js; `validateDialogue` prüft ihn, Test `dialogue.test.js`).
-  **Inhalt (seit 0.4.0):** Der Wärter sagt, dass der Gefangene morgen früh zur Hinrichtung abgeholt wird, und rät, jetzt zu
-  schlafen, um morgen fit zu sein; er zeigt auf das Bett. Gesprächsform (3 + 3 Antworten, 9 Wege) unverändert.
   Regeln für Texte: höchstens 130 Zeichen pro Sprechblase, Antworten höchstens 38 Zeichen (Handy-Lesbarkeit).
 
-## Schlafen und Tageslicht
+## Schlafen und Morgenlicht
 
-* **Voraussetzung:** Der Wärter ist fertig (`guardEvent.done`: Gespräch vorbei, Tür zu). Dann erscheint ein Hinweis
-  „Geh zum Bett“ (max. 8 s), und **nahe am Bett** (≤ 0,95 m Abstand zur Bettkante, `distanceToBed`, `SLEEP_POSE.reach` in
-  layout.js) der Knopf **Schlafen** (`#btn-sleep`). Schlafen geht **einmal pro Spielstart**.
-* **Ablauf** (`SleepEvent`, sleep-event.js): `fade_out` (1,4 s schwarz, „Du schläfst ein …“) → `asleep` (2,6 s schwarz, Kamera
-  springt unsichtbar ins Bett, „Am nächsten Morgen …“) → `wake` (4 s: Schwarz blendet aus, **Tageslicht 0 → 1**) → `get_up`
-  (1,6 s: Kamera blendet zurück an den Platz am Bett) → `done`. Zeiten in `SLEEP`. Pausen zählen nicht.
-* **Kamera:** `main.js` (`updateCamera`) mischt mit `sleep.lying` zwischen Stehen und `SLEEP_POSE` (Kopf auf dem Kissen,
-  x −2,0 / y 0,72 / z 1,8, Blick zur Zellenmitte, wo die Sonne auf den Boden fällt). Die Variablen `yaw`/`pitch` bleiben
-  unverändert, deshalb schaut der Spieler nach dem Aufstehen wieder in die alte Richtung. Arme sind im Liegen ausgeblendet.
-* **Eingaben gesperrt** während `sleep.active` (Klasse `.sleeping` blendet Joystick und Buttons aus; Einstellungs-Symbol bleibt).
-* **Tageslicht** (`world.setDaylight(0..1)`, world.js): (1) `SpotLight` „Sonne“ direkt vor dem Fenster, schräg in die Zelle,
-  **ohne Schatten**; (2) Hemisphärenlicht von `AMBIENT_INTENSITY` auf `DAY_AMBIENT`, heller/wärmer; (3) Himmel im Fenster
-  von dunkelblau auf hellblau; (4) Nebel heller; (5) Staub deutlicher. Das Sonnenlicht existiert **von Anfang an mit
-  Helligkeit 0** – die Lichtanzahl ändert sich nie (sonst müssten alle Shader neu übersetzt werden = Ruckler). Das Tageslicht
-  bleibt nach dem Schlafen dauerhaft. Werte: `SUN_INTENSITY`, `DAY_AMBIENT` oben in world.js.
-* **Fenster:** Es ist nur eine bemalte Fläche in der massiven Rückwand (kein echtes Loch), deshalb sitzt die Sonne im Raum
-  vor der Wand. Wer ein echtes Loch/Schatten der Gitterstäbe möchte, muss Wand und Schattenberechnung (statisch,
-  `shadowMap.autoUpdate = false`) anpassen.
+* **Freischaltung:** erst nach dem Gespräch (`sleepEvent.unlock()` in `main.js`, wenn das Gespräch endet). Danach zeigt ein
+  Hinweis „Geh zum Bett“; **nur in Bettnähe** (`SLEEP.nearDistance` = 0,9 m, `distanceToBed` in layout.js) erscheint der Knopf
+  „Schlafen“. Nach dem Schlafen verschwinden Hinweis und Knopf für immer (einmal pro Spielstart).
+* **Ablauf** (`SleepEvent`, ca. 11,7 s): `lie_down` (Kamera legt sich ins Bett, Blick schräg zur Decke) → `fade_out`
+  (schwarz) → `sleeping` („Du schläfst ein …“, „Die Nacht vergeht …“) → `fade_in` (Augen öffnen sich, „Der Morgen ist
+  gekommen.“, Morgenlicht steigt auf) → `stand_up` (steht neben dem Bett auf) → `morning`. In allen Phasen ist die Steuerung
+  gesperrt, die Kamera folgt `sleepEvent.cam` (Override in `updateCamera`). Beim Aufstehen setzt `physics.teleport()` die
+  Figur auf `SLEEP.stand` (bei belegtem Ziel zurück zum Startpunkt).
+* **Morgenlicht** (`world.setMorning(0..1)`): hellere Hemisphäre (1,4 → 2,6), hellerer Himmel im Fenster, hellerer Nebel,
+  mehr Staub, schwacher Lichtstrahl (additives Quader-Mesh) und ein **Sonnenstrahl (DirectionalLight mit Schatten)** durchs
+  Fenster – die Gitterstäbe werfen Streifen auf den Boden. Das Fenster ist eine **echte Öffnung durch die Wand**
+  (`WIN` in world.js); ohne Öffnung käme kein Licht hindurch. Die Sonne wird **erst beim Schlafen erzeugt**
+  (`prepareMorning`, solange der Bildschirm schwarz ist), damit das zusätzliche Licht vorher keine Leistung kostet und das
+  Übersetzen der Licht-Programme nicht sichtbar ruckelt.
+* **Gespräch:** `GUARD_DIALOGUE` in dialogue.js. Auf **jedem** Weg: Hinrichtung morgen früh, es gibt keinen Ausweg, jetzt
+  schlafen (Test `dialogue.test.js` prüft das und dass keine Fluchthinweise vorkommen).
 
-## Version, Zwischenspeicher und Diagnose
+## Zeichendurchgänge (wichtig, hier ging in 0.2/0.3 etwas schief)
 
-* **Versionsnummer** steht an drei Stellen und muss übereinstimmen (der Gesamtspiel-Test prüft es): `package.json`, `VERSION` in
-  `main.js`, `?v=…` an `style.css` und `main.js` in `index.html`. `main.js` hängt `?v=VERSION` an alle Modul-Adressen, damit der
-  Browser (GitHub Pages: bis zu 10 Minuten Zwischenspeicher) nach einem Update nicht alte und neue Dateien mischt. **Bei jeder
-  Lieferung hochzählen.** Auf dem Startbildschirm steht unten „Version … · Three.js r… · lokal/online geladen“.
-* **Diagnose-Anzeige** (Einstellungen → „Diagnose-Anzeige“): oben links Version, Grafikkarte, Zeichenaufrufe/Dreiecke je Durchgang
-  (Welt, Arme), Programme/Texturen, Grenzen der Grafikkarte, Kameraposition, Fehler und Warnungen von Three.js (z. B. „Shader
-  Error“). Dazu drei Test-Schalter: **Schatten** aus, **Nebel** aus, **Testlicht** an (sehr helles Grundlicht). Gedacht, um zu
-  finden, warum die Zelle nicht sichtbar ist (Arme leuchten selbst und bleiben sichtbar, auch wenn die Welt schwarz bleibt).
+Pro Bild: `renderer.clear()` → Welt (Kamera-Ebene 0) → `clearDepth()` → Arme (Ebene 1). **Die Szene darf keine
+Hintergrundfarbe haben** (`scene.background = null`, Farbe per `renderer.setClearColor`): Three.js löscht bei einer
+Hintergrundfarbe in JEDEM `render()`-Aufruf das ganze Bild, auch bei `autoClear = false`. Der zweite Durchgang hat dann die
+Welt wieder weggewischt (nur Arme auf Schwarz). Geprüft in `build.smoke.test.js` und `game.integration.test.js`.
+Regel: Die Tests nutzen eine Attrappe von Three.js und erkennen falsche Aufrufe der echten Bibliothek **nicht**. Bei Änderungen
+an Zeichenreihenfolge, Licht, Kamera oder Hintergrund deshalb die echte Three.js-Quelle bzw. -Dokumentation prüfen.
 
 ## Koordinaten und Einheiten
 
@@ -126,10 +121,6 @@ Tür in der vorderen Wand (z = −2,2), Gang dahinter nur sichtbar. Spawn (0,4 /
 * **Arme:** hängen an der Kamera (Kamera ist Kind der Szene), liegen auf **Ebene 1** und werden in einem **zweiten
   Zeichendurchgang** nach `clearDepth()` gezeichnet, damit sie nie in Wände ragen. Lichter müssen deshalb auch auf Ebene 1
   aktiv sein (`light.layers.enable(1)`). Zeichenreihenfolge pro Bild: `clear` → Welt (Ebene 0) → `clearDepth` → Arme (Ebene 1).
-  **Kein `scene.background` verwenden!** Eine Hintergrundfarbe an der Szene löscht bei *jedem* `render()` den ganzen
-  Bildschirm (auch mit `autoClear = false`); der zweite Durchgang (Arme) würde die Welt wegwischen, man sähe nur die Arme
-  im Dunkeln. Der Hintergrund kommt deshalb aus `renderer.setClearColor(world.background)`. Der Gesamtspiel-Test
-  (`game.integration.test.js`) simuliert dieses Verhalten und schlägt an, wenn wieder ein Szenen-Hintergrund gesetzt wird.
   Linker Arm = gespiegelter rechter Arm (`scale.x = -1` am Halter). Animation aus der Kamera-Laufphase (`cam.phase`).
 * **Steuerung:** Pointer-Events mit Mehrfingerverfolgung. Links = Joystick (erscheint am Berührpunkt, Mittelpunkt fix, Totzone
   10 %), rechts = Kamera (0,0045 rad/Pixel × Empfindlichkeit), Neigung auf ±1,45 rad begrenzt.
@@ -147,16 +138,17 @@ Tür in der vorderen Wand (z = −2,2), Gang dahinter nur sichtbar. Spawn (0,4 /
 | `arms.test.js` | Armbewegung: gegengleich, Sprint stärker, Faust, Sprung, Zufallsdauertest |
 | `build.smoke.test.js` | Aufbau von Texturen und Welt läuft ohne Programmfehler (Three.js/Canvas als Attrappe) |
 | `dialogue.test.js` | Gespräch: Verweise, Schleifenfreiheit, alle 9 Wege enden, Schreibmaschine, Antippen, Antworten, Textlängen |
-| `sleep-event.test.js` | Schlafen: Reihenfolge, Werte 0..1, Hinlegen nur im Schwarzen, Tageslicht steigt nur und bleibt, einmalig, Pause, Zufallsläufe, Schlafpose liegt auf dem Bett |
 | `guard-event.test.js` | Zeitplan: zählt nur Spielzeit, 15 s, Reihenfolge der Zustände, Sperre nur im Gespräch, Pause, Zufallsläufe |
+| `sleep-event.test.js` | Schlafen: Reihenfolge, Morgenlicht steigt gleichmäßig, Abdunkeln vor dem Vorbereiten des Lichts, Kamera ohne Sprünge, kurzer Drehweg, Pause, Zufallsläufe |
 | `guard.test.js` | Wärter-Animation: Beine gegengleich, Kopf folgt und ist begrenzt, Mund beim Sprechen, Zufalls-Dauertest |
-| `game.integration.test.js` | echtes `main.js` mit Attrappen: Start, Joystick, Sprint gegen Tür, Sprung, Zeichenreihenfolge, **Wärter erscheint nicht vor 15 s, Gespräch komplett durchgespielt, Steuerung gesperrt und danach wieder frei, zum Bett laufen, Knopf „Schlafen“, schwarz, Kamera im Bett, Sonne geht auf (Helligkeit gelesen), Aufstehen, Knopf kommt nicht ein zweites Mal**, Einstellungen |
+| `game.integration.test.js` | echtes `main.js` mit Attrappen: Start, Joystick, Sprint gegen Tür, Sprung, Zeichenreihenfolge, **Wärter erscheint nicht vor 15 s, Gespräch komplett durchgespielt, Steuerung gesperrt und danach wieder frei, zum Bett gehen, Schlafen (Kamera liegt, Bild schwarz, Texte, Sonnenlicht erst jetzt), Aufstehen, keine Hintergrundfarbe in der Szene**, Einstellungen |
 
 ## Teststatus: was NICHT geprüft ist
 
 * **Optik** (Aussehen von Zelle, Texturen, Licht, Armen/Händen, Symmetrie auf dem Bildschirm, **Wärter, Tür am Gangende,
-  Gesprächsfeld, Sonnenstrahl und Tageshelligkeit, Blick aus dem Bett, Schwarzblende mit Text, Knopf „Schlafen“**): kein Browser/keine Grafikkarte in der Entwicklungsumgebung. Lichtwerte sind geschätzt (daher der
-  Helligkeitsregler). **Ob der Tag deutlich heller wirkt oder zu stark überstrahlt, ist unbekannt** (`SUN_INTENSITY`, `DAY_AMBIENT`). Ob der Wärter im Gang gut ausgeleuchtet und gut lesbar ist, ist unbekannt.
+  Gesprächsfeld**): kein Browser/keine Grafikkarte in der Entwicklungsumgebung. Lichtwerte sind geschätzt (daher der
+  Helligkeitsregler). Ob der Wärter im Gang gut ausgeleuchtet und gut lesbar ist, ist unbekannt.
+* **Morgenlicht** (ob Sonnenfleck, Gitterschatten und Lichtstrahl gut aussehen, ob die Zelle „hell genug“ wirkt; Helligkeitswerte `MORNING_SUN`/`MORNING_AMBIENT` oben in world.js sind geschätzt) und der Ruckler beim ersten Erzeugen des Sonnenlichts auf schwachen Handys.
 * **Gefühl des Auftritts** (Tempo, Kamerafahrt zum Wärter, Lesbarkeit des Textes auf dem Handy).
 * **Echtes Handy** (Bildrate, Gefühl der Steuerung, Vollbild, Querformat-Sperre).
 * **Echte Three.js-Bibliothek:** Tests nutzen eine Attrappe; Aufrufe wurden nach bestem Wissen für r170 geschrieben.

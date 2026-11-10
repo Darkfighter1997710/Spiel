@@ -5,77 +5,67 @@
 
 export const SPEAKER_GUARD = 'Wärter';
 
-// Der Wärter: grummelig, trockener Humor, zwölf Jahre im Dienst. Er sagt dem Gefangenen, dass morgen die Hinrichtung
-// ansteht, und schickt ihn schlafen (Bett: siehe sleep-event.js).
+// Der Wärter überbringt eine einzige Nachricht: Morgen früh ist die Hinrichtung, es gibt keinen Ausweg, der Gefangene
+// soll jetzt schlafen, um am Tag der Hinrichtung bei Kräften zu sein. Ernst, knapp, ohne Hoffnungsschimmer.
+// Die Antworten des Spielers ändern am Inhalt nichts, nur am Ton.
 export const GUARD_DIALOGUE = Object.freeze({
   start: 'g1',
   nodes: {
     g1: {
       speaker: SPEAKER_GUARD,
-      text: 'Na endlich, du bist wach. Ich dachte schon, ich müsste dich mit dem Wassereimer wecken.',
+      text: 'Du bist wach. Gut. Hör genau zu, ich sage es nur einmal.',
       next: 'g2',
     },
     g2: {
       speaker: SPEAKER_GUARD,
-      text: 'Du hast länger geschlafen als der Letzte in dieser Zelle. Der ist übrigens nie wieder aufgewacht.',
+      text: 'Morgen früh, bei Sonnenaufgang, ist deine Hinrichtung. Man wird dich zum Richtplatz führen.',
       choices: [
-        { text: 'Wo bin ich hier?', next: 'a1' },
-        { text: 'Lass mich sofort raus!', next: 'b1' },
-        { text: 'Wer bist du?', next: 'c1' },
+        { text: 'Wofür? Was habe ich getan?', next: 'a1' },
+        { text: 'Gibt es keinen Ausweg?', next: 'b1' },
+        { text: '…', next: 'c1' },
       ],
     },
     a1: {
       speaker: SPEAKER_GUARD,
-      text: 'Im Verlies unter Burg Schwarzfels. Der Service ist schlecht, aber die Aussicht ist unschlagbar: Stein. Überall Stein.',
+      text: 'Das spielt keine Rolle mehr. Das Urteil ist gesprochen, und es wird morgen vollstreckt.',
       next: 'm1',
     },
     b1: {
       speaker: SPEAKER_GUARD,
-      text: 'Raus? Das höre ich jeden Tag. Von jedem. Und die Antwort bleibt dieselbe: Nein.',
+      text: 'Keinen. Kein Aufschub, keine Gnade. Das Urteil ist endgültig.',
       next: 'm1',
     },
     c1: {
       speaker: SPEAKER_GUARD,
-      text: 'Ich bin Garrick. Zwölf Jahre Wächter, zwölf Jahre Suppe aus demselben verfluchten Kessel.',
+      text: 'Schweigen ist klug. Es gibt nichts mehr zu sagen. Das Urteil ist endgültig.',
       next: 'm1',
     },
     m1: {
       speaker: SPEAKER_GUARD,
-      text: 'Hör gut zu, Gefangener. Morgen früh holen sie dich ab. Zur Hinrichtung.',
+      text: 'Es gibt keinen Ausweg, mehr nicht. Nur dies: Am Tag deiner Hinrichtung musst du auf eigenen Beinen stehen können.',
+      next: 'm2',
+    },
+    m2: {
+      speaker: SPEAKER_GUARD,
+      text: 'Also leg dich jetzt hin und schlaf. Wer ausgeruht ist, trägt den letzten Gang leichter.',
       choices: [
-        { text: 'Das kann nicht dein Ernst sein!', next: 'd1' },
-        { text: 'Was habe ich getan?', next: 'd2' },
-        { text: 'Gibt es keinen Ausweg?', next: 'd3' },
+        { text: 'Ich werde es versuchen.', next: 'e1' },
+        { text: 'Wie soll ich jetzt schlafen?', next: 'e2' },
       ],
-    },
-    d1: {
-      speaker: SPEAKER_GUARD,
-      text: 'Mein voller Ernst. Der Henker hat seine Axt schon geschliffen. Er ist sehr gewissenhaft.',
-      next: 'e1',
-    },
-    d2: {
-      speaker: SPEAKER_GUARD,
-      text: 'Das weiß nur der Hauptmann. Mir sagt keiner etwas. Ich halte nur die Schlüssel und den Mund.',
-      next: 'e1',
-    },
-    d3: {
-      speaker: SPEAKER_GUARD,
-      text: 'Einen Ausweg? Nicht von mir. Aber Mut gefällt mir. Der ist hier unten selten.',
-      next: 'e1',
     },
     e1: {
       speaker: SPEAKER_GUARD,
-      text: 'Ein Rat, umsonst: Geh jetzt schlafen, damit du morgen fit bist. Zur Hinrichtung kommt man besser ausgeruht.',
-      next: 'e2',
+      text: 'Gut. Das Bett steht an der Wand. Es ist hart, aber es gehört dir für diese Nacht.',
+      next: 'f1',
     },
     e2: {
       speaker: SPEAKER_GUARD,
-      text: 'Da hinten steht dein Bett. Es ist hart und kalt, aber es ist das letzte, das du bekommst.',
-      next: 'e3',
+      text: 'Schließ die Augen und atme ruhig. Es ist deine letzte Nacht. Verschwende sie nicht.',
+      next: 'f1',
     },
-    e3: {
+    f1: {
       speaker: SPEAKER_GUARD,
-      text: 'Ich war nie hier. Gute Nacht, Gefangener … und schlaf gut, falls du kannst.',
+      text: 'Schlaf jetzt. Bei Sonnenaufgang hole ich dich ab.',
       next: null,
     },
   },

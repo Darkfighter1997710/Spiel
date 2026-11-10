@@ -25,6 +25,7 @@ export class PlayerPhysics {
     this.bounds = bounds;
     this.p = params;
     this.x = spawn.x; this.z = spawn.z; this.y = 0;
+    this.spawn = { x: spawn.x, z: spawn.z };
     this.vx = 0; this.vy = 0; this.vz = 0;
     this.yaw = 0;
     this.inX = 0; this.inZ = 0; this.sprint = false;
@@ -40,6 +41,35 @@ export class PlayerPhysics {
   }
 
   queueJump() { this.jumpTimer = this.p.jumpBuffer; }
+
+  // Figur sofort an eine Stelle setzen (z. B. nach dem Aufwachen neben dem Bett): steht danach ruhig auf dem Boden
+  teleport(x, z) {
+    this.x = x; this.z = z;
+    this.vx = 0; this.vy = 0; this.vz = 0;
+    this.jumpTimer = 0;
+    this._clampBounds();
+    this.y = this._supportHeight(this.p.stepHeight, 0);
+    this.grounded = true;
+    // Landet der Punkt in einem Möbelstück oder in der Wand, wird die Figur wie sonst auch herausgeschoben.
+    // Gelingt das nicht (z. B. Ecke zwischen Bett und Wand), geht sie sicher an den Startpunkt zurück.
+    this._collide(); this._clampBounds();
+    this._collide(); this._clampBounds();
+    if (this._overlapsAny()) {
+      this.x = this.spawn.x; this.z = this.spawn.z;
+      this.y = this._supportHeight(this.p.stepHeight, 0);
+      this._collide(); this._clampBounds();
+    }
+  }
+
+  _overlapsAny() {
+    const r = this.p.radius;
+    for (const c of this.colliders) {
+      if (!this.isBlocking(c)) continue;
+      const dx = this.x - clamp(this.x, c.minX, c.maxX), dz = this.z - clamp(this.z, c.minZ, c.maxZ);
+      if (Math.hypot(dx, dz) < r - 1e-3) return true;
+    }
+    return false;
+  }
 
   consumeLandImpact() { const v = this.landImpact; this.landImpact = 0; return v; }
 

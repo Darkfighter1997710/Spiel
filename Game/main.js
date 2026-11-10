@@ -4,11 +4,6 @@
 
 const $ = (id) => document.getElementById(id);
 
-// Versionsnummer: gleich wie in package.json und in index.html (?v=…). Sie hängt an allen Modul-Adressen, damit der Browser nach
-// einem Update nie veraltete Dateien aus dem Zwischenspeicher nimmt (sonst laufen alte und neue Dateien gemischt).
-const VERSION = '0.4.2';
-const Q = `?v=${VERSION}`;
-
 // ---------- Browser-Gesten unterdrücken (Zoomen, Kontextmenü, Doppeltipp, Scrollen) ----------
 document.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -19,7 +14,7 @@ document.addEventListener('touchmove', (e) => {
 
 // ---------- Einstellungen (werden im Browser gespeichert) ----------
 const SETTINGS_KEY = 'verlies.settings.v1';
-const DEFAULTS = { sens: 1, bright: 1, invert: false, diag: false };
+const DEFAULTS = { sens: 1, bright: 1, invert: false };
 
 function loadSettings() {
   try {
@@ -59,26 +54,24 @@ boot().catch((err) => {
 });
 
 async function boot() {
-  const { loadThree } = await import(`./js/loader.js${Q}`);
+  const { loadThree } = await import('./js/loader.js');
   const { THREE, source } = await loadThree();
   const [
     { createWorld }, { PlayerPhysics, PLAYER }, { TouchControls }, { createArms },
-    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD, SLEEP_POSE, distanceToBed },
-    { SleepEvent }, { captureErrors, formatDebug, gpuName },
+    { createGuard }, { GuardEvent }, { DialogueRunner, GUARD_DIALOGUE }, { createDialogueUI }, { GUARD, SLEEP, distanceToBed },
+    { SleepEvent },
   ] = await Promise.all([
-    import(`./js/world.js${Q}`),
-    import(`./js/physics.js${Q}`),
-    import(`./js/controls.js${Q}`),
-    import(`./js/arms.js${Q}`),
-    import(`./js/guard.js${Q}`),
-    import(`./js/guard-event.js${Q}`),
-    import(`./js/dialogue.js${Q}`),
-    import(`./js/dialogue-ui.js${Q}`),
-    import(`./js/layout.js${Q}`),
-    import(`./js/sleep-event.js${Q}`),
-    import(`./js/debug.js${Q}`),
+    import('./js/world.js'),
+    import('./js/physics.js'),
+    import('./js/controls.js'),
+    import('./js/arms.js'),
+    import('./js/guard.js'),
+    import('./js/guard-event.js'),
+    import('./js/dialogue.js'),
+    import('./js/dialogue-ui.js'),
+    import('./js/layout.js'),
+    import('./js/sleep-event.js'),
   ]);
-  const errorLines = captureErrors();   // Fehler/Warnungen der Grafik sammeln (für die Diagnose-Anzeige)
 
   const settings = loadSettings();
 
@@ -110,7 +103,6 @@ async function boot() {
 
   // ---------- Welt, Kamera, Physik ----------
   const world = createWorld(THREE, renderer);
-  renderer.setClearColor(world.background, 1);   // Hintergrund über die Löschfarbe (nicht scene.background, siehe world.js)
   const camera = new THREE.PerspectiveCamera(72, 1, 0.05, 40);
   camera.rotation.order = 'YXZ';
 
@@ -137,16 +129,13 @@ async function boot() {
   });
   const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
-  // Schlafen: Nach dem Gespräch erscheint am Bett der Knopf „Schlafen“. Danach wird es durch die Sonne heller
-  // (Ablauf: sleep-event.js, Licht: world.setDaylight).
-  const sleep = new SleepEvent();
-  const btnSleep = $('btn-sleep'), sleepHint = $('sleep-hint'), sleepFade = $('sleep-fade'), sleepCaption = $('sleep-caption');
-  let sleepBtnShown = false, sleepHintShown = false, sleepHintLeft = 8;   // Hinweis erscheint maximal 8 Sekunden lang
-  let shownFade = -1, shownCaption = null, shownDaylight = -1, shownSleeping = false;
-  btnSleep.addEventListener('click', () => {
-    if (!sleepBtnShown || !sleep.start()) return;
-    controls.reset();
-    btnSleep.hidden = true; sleepBtnShown = false;
+  // Schlafen: nach dem Gespräch darf der Spieler zum Bett gehen und schlafen. Danach scheint das Morgenlicht in die Zelle.
+  const sleepEvent = new SleepEvent();
+  const sleepEls = { hint: $('sleep-hint'), btn: $('btn-sleep'), fade: $('sleep-fade'), text: $('sleep-text') };
+  const sleepShown = { hint: false, btn: false, sleeping: false, fade: -1, caption: '', alpha: -1 };
+  sleepEls.btn.addEventListener('click', () => {
+    if (!sleepEvent.canStart || guardEvent.inputLocked || distanceToBed(physics.x, physics.z) > SLEEP.nearDistance) return;
+    sleepEvent.start({ x: physics.x, y: physics.y + PLAYER.eye, z: physics.z, yaw, pitch });
   });
 
   const physics = new PlayerPhysics(world.colliders, world.bounds, world.spawn);
@@ -192,59 +181,6 @@ async function boot() {
   });
   invertIn.addEventListener('change', () => { settings.invert = invertIn.checked; saveSettings(settings); });
 
-  // Diagnose-Anzeige: zeigt, was gezeichnet wird, plus drei Test-Schalter (Schatten, Nebel, helles Testlicht)
-  const diagIn = $('diag');
-  diagIn.checked = settings.diag;
-  const applyDiag = () => { $('debug-box').hidden = !settings.diag; };
-  diagIn.addEventListener('change', () => { settings.diag = diagIn.checked; saveSettings(settings); applyDiag(); });
-  applyDiag();
-  const dbg = { shadow: true, fog: true, bright: false, worldStat: { calls: 0, tris: 0 }, armStat: { calls: 0, tris: 0 }, fps: 0, timer: 99 };
-  const fogObject = world.scene.fog;
-  const refreshMaterials = () => world.scene.traverse((o) => {
-    const m = o.material;
-    if (m) (Array.isArray(m) ? m : [m]).forEach((mm) => { mm.needsUpdate = true; });
-  });
-  const dbgLabel = (id, name, on, onText = 'an', offText = 'aus') => { $(id).textContent = `${name}: ${on ? onText : offText}`; };
-  $('dbg-shadow').addEventListener('click', () => {
-    dbg.shadow = !dbg.shadow;
-    renderer.shadowMap.enabled = dbg.shadow;
-    if (dbg.shadow) renderer.shadowMap.needsUpdate = true;
-    refreshMaterials(); dbgLabel('dbg-shadow', 'Schatten', dbg.shadow);
-  });
-  $('dbg-fog').addEventListener('click', () => {
-    dbg.fog = !dbg.fog;
-    world.scene.fog = dbg.fog ? fogObject : null;
-    refreshMaterials(); dbgLabel('dbg-fog', 'Nebel', dbg.fog);
-  });
-  $('dbg-bright').addEventListener('click', () => {
-    dbg.bright = !dbg.bright;
-    world.setDebugBright(dbg.bright); dbgLabel('dbg-bright', 'Testlicht', dbg.bright);
-  });
-  const readPass = () => {
-    const r = renderer.info && renderer.info.render;
-    return r ? { calls: r.calls, tris: r.triangles } : { calls: '?', tris: '?' };
-  };
-  function updateDebug(rawDt) {
-    dbg.fps += ((1 / Math.max(rawDt, 0.001)) - dbg.fps) * 0.05;
-    dbg.timer += rawDt;
-    if (dbg.timer < 0.4) return;
-    dbg.timer = 0;
-    const info = renderer.info || {}, caps = renderer.capabilities || {};
-    $('debug-text').textContent = formatDebug({
-      version: VERSION, three: THREE.REVISION, source, gpu: dbg.gpu || (dbg.gpu = gpuName(renderer)),
-      width: window.innerWidth, height: window.innerHeight, pixelRatio, fps: dbg.fps,
-      world: dbg.worldStat, arms: dbg.armStat,
-      programs: info.programs ? info.programs.length : '?',
-      textures: info.memory ? info.memory.textures : '?', geometries: info.memory ? info.memory.geometries : '?',
-      caps: {
-        maxTextures: caps.maxTextures, maxTextureSize: caps.maxTextureSize, maxFragmentUniforms: caps.maxFragmentUniforms,
-        maxVaryings: caps.maxVaryings, precision: caps.precision,
-      },
-      cam: { x: camera.position.x, y: camera.position.y, z: camera.position.z, yaw, pitch },
-      daylight: world.daylight, exposure: renderer.toneMappingExposure, messages: errorLines,
-    });
-  }
-
   const openSettings = () => { settingsOpen = true; controls.reset(); $('settings-panel').hidden = false; };
   const closeSettings = () => { settingsOpen = false; $('settings-panel').hidden = true; };
   $('btn-settings').addEventListener('click', openSettings);
@@ -276,7 +212,7 @@ async function boot() {
   // ---------- Start ----------
   let started = false;
   const startBtn = $('start-btn');
-  $('engine-info').textContent = `Version ${VERSION} · Three.js r${THREE.REVISION} · ${source} geladen`;
+  $('engine-info').textContent = `Three.js r${THREE.REVISION} · ${source} geladen`;
   camera.layers.set(1); renderer.compile(world.scene, camera);   // Shader vorab übersetzen (verhindert Ruckler beim ersten Bild)
   camera.layers.set(0); renderer.compile(world.scene, camera);
   startBtn.textContent = 'Spiel starten';
@@ -291,6 +227,15 @@ async function boot() {
   // ---------- Kamera: Position, Kopfwippen, Landeruck, Sprint-Weitwinkel ----------
   const cam = { phase: 0, amp: 0, dip: 0, eye: null, fov: 72, sprinting: false };
   function updateCamera(dt) {
+    if (sleepEvent.cameraOverride) {
+      // Schlafen: die Kamera folgt dem Ablauf (hinlegen, im Bett liegen, aufstehen)
+      const c = sleepEvent.cam;
+      yaw = c.yaw; pitch = c.pitch;
+      camera.position.set(c.x, c.y, c.z);
+      camera.rotation.set(c.pitch, c.yaw, 0);
+      cam.eye = null; cam.amp = 0; cam.dip = 0;
+      return;
+    }
     const targetEye = physics.y + PLAYER.eye;
     if (cam.eye === null) cam.eye = targetEye;
     // am Boden leicht glätten (weiches Hochsteigen), in der Luft exakt mitfliegen
@@ -312,17 +257,8 @@ async function boot() {
     const offX = Math.cos(cam.phase) * 0.02 * cam.amp;
     const roll = Math.cos(cam.phase) * 0.006 * cam.amp;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw);   // "rechts" in Blickrichtung
-    let cx = physics.x + rx * offX, cy = cam.eye + offY, cz = physics.z + rz * offX;
-    let camYaw = yaw, camPitch = pitch, camRoll = roll;
-    const lie = sleep.lying;   // 0 = stehen, 1 = Kopf auf dem Kissen (Schlafen: Kamera blendet dazwischen)
-    if (lie > 0) {
-      cx += (SLEEP_POSE.x - cx) * lie; cy += (SLEEP_POSE.y - cy) * lie; cz += (SLEEP_POSE.z - cz) * lie;
-      camYaw = yaw + wrapAngle(SLEEP_POSE.yaw - yaw) * lie;
-      camPitch = pitch + (SLEEP_POSE.pitch - pitch) * lie;
-      camRoll = roll * (1 - lie);
-    }
-    camera.position.set(cx, cy, cz);
-    camera.rotation.set(camPitch, camYaw, camRoll);
+    camera.position.set(physics.x + rx * offX, cam.eye + offY, physics.z + rz * offX);
+    camera.rotation.set(pitch, yaw, roll);
 
     const wantFov = 72 + (sprinting ? 5 : 0);
     cam.fov += (wantFov - cam.fov) * (1 - Math.exp(-dt * 6));
@@ -351,20 +287,22 @@ async function boot() {
       if (guardEvent.consumeDialogueStart()) { dialogue.start(); dialogueActive = true; }
       if (dialogueActive) {
         dialogue.update(dt);
-        if (dialogue.finished) { dialogueActive = false; guardEvent.finishTalk(); dialogueUI.hide(); }
+        if (dialogue.finished) { dialogueActive = false; guardEvent.finishTalk(); sleepEvent.unlock(); dialogueUI.hide(); }
         else dialogueUI.render(dialogue);
       }
 
-      sleep.update(dt, true);
+      // Schlafen (läuft nur, wenn gespielt wird)
+      sleepEvent.update(dt, true);
+      if (sleepEvent.consumePrepareMorning()) world.prepareMorning();      // Bildschirm ist jetzt schwarz
+      if (sleepEvent.consumeStandUp()) physics.teleport(SLEEP.stand.x, SLEEP.stand.z);
 
-      if (sleep.active) {
-        // Schlafen: keine Steuerung, die Figur bleibt stehen, die Kamera liegt im Bett
+      if (guardEvent.inputLocked || sleepEvent.inputLocked) {
+        // Gespräch oder Schlafen: keine Steuerung
         controls.consumeLook(); controls.consumeJump(); controls.reset();
         physics.setInput(0, 0, false, yaw);
-      } else if (guardEvent.inputLocked) {
-        // Gespräch: keine Steuerung, die Kamera dreht sich sanft zum Wärter
-        controls.consumeLook(); controls.consumeJump(); controls.reset();
-        physics.setInput(0, 0, false, yaw);
+      }
+      if (guardEvent.inputLocked) {
+        // Gespräch: die Kamera dreht sich sanft zum Wärter
         const eyeY = physics.y + PLAYER.eye;
         const dx = guardEvent.x - physics.x, dz = guardEvent.z - physics.z;
         const dist = Math.max(0.5, Math.hypot(dx, dz));
@@ -373,7 +311,7 @@ async function boot() {
         const kk = 1 - Math.exp(-dt * 4);
         yaw += wrapAngle(yawT - yaw) * kk;
         pitch += (pitchT - pitch) * kk;
-      } else {
+      } else if (!sleepEvent.inputLocked) {
         const look = controls.consumeLook();
         const k = BASE_LOOK * settings.sens;
         yaw -= look.dx * k;
@@ -398,6 +336,27 @@ async function boot() {
     const pitchRate = (pitch - prevPitch) / Math.max(dt, 0.004);
     prevYaw = yaw; prevPitch = pitch;
 
+    // Schlafen: Hinweis, Knopf, Abdunkelung und Text (nur ändern, wenn sich etwas ändert)
+    {
+      const near = distanceToBed(physics.x, physics.z) <= SLEEP.nearDistance;
+      const free = sleepEvent.canStart && !guardEvent.inputLocked;
+      const showBtn = free && near, showHint = free && !near;
+      if (showBtn !== sleepShown.btn) { sleepShown.btn = showBtn; sleepEls.btn.hidden = !showBtn; }
+      if (showHint !== sleepShown.hint) { sleepShown.hint = showHint; sleepEls.hint.hidden = !showHint; }
+      const sl = sleepEvent.inputLocked;
+      if (sl !== sleepShown.sleeping) {
+        sleepShown.sleeping = sl;
+        if (sl) $('hud').classList.add('sleeping'); else $('hud').classList.remove('sleeping');
+      }
+      const f = Math.round(sleepEvent.fade * 100) / 100;
+      if (f !== sleepShown.fade) { sleepShown.fade = f; sleepEls.fade.style.background = `rgba(0,0,0,${f})`; }
+      if (sleepEvent.caption !== sleepShown.caption) { sleepShown.caption = sleepEvent.caption; sleepEls.text.textContent = sleepEvent.caption; }
+      const a = Math.round(sleepEvent.captionAlpha * 100) / 100;
+      if (a !== sleepShown.alpha) { sleepShown.alpha = a; sleepEls.text.style.opacity = String(a); }
+      world.setMorning(sleepEvent.morning);
+      arms.group.visible = !sleepEvent.cameraOverride || sleepEvent.state === 'stand_up';
+    }
+
     // Wärter und Tür am Gangende darstellen
     {
       const dx = physics.x - guardEvent.x, dz = physics.z - guardEvent.z;
@@ -413,30 +372,6 @@ async function boot() {
       });
     }
 
-    // Schlafen: Knopf/Hinweis am Bett, Schwarzblende, Tageslicht
-    {
-      const canSleep = active && guardEvent.done && !sleep.active && !sleep.done && !dialogueActive;
-      const near = canSleep && distanceToBed(physics.x, physics.z) <= SLEEP_POSE.reach;
-      if (near !== sleepBtnShown) { sleepBtnShown = near; btnSleep.hidden = !near; }
-      const wantHint = canSleep && !near && sleepHintLeft > 0;
-      if (wantHint) sleepHintLeft -= dt;
-      if (wantHint !== sleepHintShown) { sleepHintShown = wantHint; sleepHint.hidden = !wantHint; }
-
-      const f = sleep.fade;
-      if (f !== shownFade) {
-        shownFade = f;
-        sleepFade.hidden = f <= 0.001;
-        sleepFade.style.opacity = String(f);
-      }
-      if (sleep.caption !== shownCaption) { shownCaption = sleep.caption; sleepCaption.textContent = sleep.caption; }
-      if (sleep.active !== shownSleeping) {
-        shownSleeping = sleep.active;
-        if (sleep.active) $('hud').classList.add('sleeping'); else $('hud').classList.remove('sleeping');
-      }
-      if (sleep.daylight !== shownDaylight) { shownDaylight = sleep.daylight; world.setDaylight(sleep.daylight); }
-      arms.group.visible = !(sleep.lying > 0.3);   // im Bett liegend sieht man die Arme nicht
-    }
-
     updateCamera(dt);
     arms.update(dt, {
       phase: cam.phase, amp: cam.amp, sprinting: cam.sprinting, grounded: physics.grounded, vy: physics.vy,
@@ -445,10 +380,8 @@ async function boot() {
     world.update(now / 1000);
     renderer.clear();
     camera.layers.set(0); renderer.render(world.scene, camera);   // 1. Welt
-    if (settings.diag) dbg.worldStat = readPass();
     renderer.clearDepth();
     camera.layers.set(1); renderer.render(world.scene, camera);   // 2. Arme (immer vor der Welt)
-    if (settings.diag) { dbg.armStat = readPass(); updateDebug(rawDt); }
 
     // Falls das Gerät zu langsam ist, die Auflösung schrittweise verringern (nie wieder erhöhen)
     if (active) {

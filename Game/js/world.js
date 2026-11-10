@@ -1,4 +1,4 @@
-// world.js – baut die Gefängniszelle (Wände, Möbel, Gittertür, Fackel, Licht, Tageslicht durch das Fenster).
+// world.js – baut die Gefängniszelle (Wände, Möbel, Gittertür, Fackel, Licht).
 // Alle Maße kommen aus layout.js, damit Optik und Kollisionen übereinstimmen.
 
 import { createTextures } from './textures.js';
@@ -10,19 +10,23 @@ import {
 const TORCH_INTENSITY = 38;     // Helligkeit der Fackel
 const CORRIDOR_INTENSITY = 14;  // Helligkeit des Gangs hinter der Tür
 const AMBIENT_INTENSITY = 1.4;  // schwaches Grundlicht (sonst wäre alles pechschwarz)
-// Tageslicht (nach dem Schlafen): Sonne scheint durch das Fenster, die ganze Zelle wird heller
-const SUN_INTENSITY = 140;      // Helligkeit des Sonnenstrahls aus dem Fenster
-const DAY_AMBIENT = 3.4;        // Grundlicht am Tag (statt AMBIENT_INTENSITY)
+const MORNING_AMBIENT = 2.6;    // Grundlicht am Morgen (Tageslicht, das durchs Fenster streut)
+const MORNING_SUN = 16;         // Helligkeit des Sonnenstrahls am Morgen
+// Fenster in der hinteren Wand (Öffnung durch die ganze Wand, damit das Morgenlicht hindurchkommt)
+const WIN = { halfW: 0.35, y0: 1.5, y1: 2.4 };
+// Laufrichtung des Sonnenlichts (von draußen durchs Fenster schräg nach unten in die Zelle)
+const SUN_DIR = (() => { const x = -0.35, y = -0.5, z = -0.79, l = Math.hypot(x, y, z); return { x: x / l, y: y / l, z: z / l }; })();
 
 export function createWorld(THREE, renderer) {
   const T = createTextures(THREE, renderer);
 
   const scene = new THREE.Scene();
-  // KEIN scene.background: Eine Hintergrundfarbe an der Szene löscht bei jedem render()-Aufruf den ganzen Bildschirm, auch bei
-  // autoClear = false. Das Spiel zeichnet aber zweimal pro Bild (Welt, dann Arme) – der zweite Durchgang würde die Welt
-  // wegwischen (man sähe nur die Arme). Stattdessen setzt main.js die Löschfarbe des Renderers (world.background).
-  const fog = new THREE.FogExp2(0x050302, 0.06);
-  scene.fog = fog;   // eigene Referenz: die Diagnose kann scene.fog zeitweise abschalten (null)
+  // WICHTIG: keine Hintergrundfarbe in der Szene! Three.js löscht bei einer Hintergrundfarbe in JEDEM Zeichendurchgang
+  // das ganze Bild. Dann würde der zweite Durchgang (Arme) die Zelle wieder wegwischen -> alles schwarz.
+  // Die Hintergrundfarbe kommt stattdessen vom Renderer.
+  scene.background = null;
+  renderer.setClearColor(0x030201, 1);
+  scene.fog = new THREE.FogExp2(0x050302, 0.06);
 
   const group = new THREE.Group();
   scene.add(group);
@@ -116,7 +120,11 @@ export function createWorld(THREE, renderer) {
   boxMM(-W - WT, W + WT, H, H + 0.5, -D - WT, D + WT, M.ceil, { world: WALL_TS });
   boxMM(-W - WT, -W, 0, H, -D - WT, D + WT, M.wall, { world: WALL_TS });              // links
   boxMM(W, W + WT, 0, H, -D - WT, D + WT, M.wall, { world: WALL_TS });                // rechts
-  boxMM(-W, W, 0, H, D, D + WT, M.wall, { world: WALL_TS });                          // hinten
+  // hinten: Wand mit Fensteröffnung (unten, oben, links und rechts vom Fenster)
+  boxMM(-W, W, 0, WIN.y0, D, D + WT, M.wall, { world: WALL_TS });
+  boxMM(-W, W, WIN.y1, H, D, D + WT, M.wall, { world: WALL_TS });
+  boxMM(-W, -WIN.halfW, WIN.y0, WIN.y1, D, D + WT, M.wall, { world: WALL_TS });
+  boxMM(WIN.halfW, W, WIN.y0, WIN.y1, D, D + WT, M.wall, { world: WALL_TS });
   boxMM(-W, -DOOR.halfW, 0, H, -D - WT, -D, M.wall, { world: WALL_TS });              // vorne links
   boxMM(DOOR.halfW, W, 0, H, -D - WT, -D, M.wall, { world: WALL_TS });                // vorne rechts
   boxMM(-DOOR.halfW, DOOR.halfW, DOOR.height, H, -D - WT, -D, M.wall, { world: WALL_TS }); // Sturz über der Tür
@@ -299,20 +307,26 @@ export function createWorld(THREE, renderer) {
     }
   }
 
-  // ---------- kleines vergittertes Fenster (hinten, genau in der Wandmitte) ----------
+  // ---------- vergittertes Fenster (hinten, genau in der Wandmitte) ----------
   {
-    const sky = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.7), M.sky);
-    sky.position.set(0, 1.95, D - 0.01);
+    const wc = (WIN.y0 + WIN.y1) / 2;
+    // Himmel hinter der Öffnung (nachts dunkel, morgens hell – siehe setMorning)
+    const sky = new THREE.Mesh(new THREE.PlaneGeometry(WIN.halfW * 2 + 0.3, WIN.y1 - WIN.y0 + 0.3), M.sky);
+    sky.position.set(0, wc, D + WT + 0.02);
     sky.rotation.y = Math.PI;
     group.add(sky);
-    boxMM(-0.29, 0.29, 2.3, 2.35, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
-    boxMM(-0.29, 0.29, 1.55, 1.6, D - 0.1, D, M.wall, { cast: false, world: WALL_TS });
-    boxMM(-0.29, -0.25, 1.55, 2.35, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
-    boxMM(0.25, 0.29, 1.55, 2.35, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
-    const barGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.75, 6);
-    for (const bx of [-0.15, 0, 0.15]) {
+    // Rahmen an der Innenseite
+    const fo = WIN.halfW + 0.04;
+    boxMM(-fo, fo, WIN.y1, WIN.y1 + 0.05, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
+    boxMM(-fo, fo, WIN.y0 - 0.05, WIN.y0, D - 0.1, D, M.wall, { cast: false, world: WALL_TS });
+    boxMM(-fo, -WIN.halfW, WIN.y0 - 0.05, WIN.y1 + 0.05, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
+    boxMM(WIN.halfW, fo, WIN.y0 - 0.05, WIN.y1 + 0.05, D - 0.08, D, M.wall, { cast: false, world: WALL_TS });
+    // Gitterstäbe: werfen im Morgenlicht Streifen auf den Boden
+    const barGeo = new THREE.CylinderGeometry(0.014, 0.014, WIN.y1 - WIN.y0 + 0.02, 6);
+    for (const bx of [-0.21, -0.07, 0.07, 0.21]) {
       const bar = new THREE.Mesh(barGeo, M.iron);
-      bar.position.set(bx, 1.95, D - 0.04);
+      bar.position.set(bx, wc, D - 0.04);
+      bar.castShadow = true;
       group.add(bar);
     }
   }
@@ -369,17 +383,6 @@ export function createWorld(THREE, renderer) {
   hemi.layers.enable(1);   // Ebene 1 = Arme (werden in eigenem Durchgang gezeichnet)
   scene.add(hemi);
 
-  // Sonnenstrahl: kommt vom Fenster (hinten, Wandmitte) schräg nach unten in die Zelle. Das Licht sitzt direkt vor dem
-  // Fenster im Raum (die Wand ist massiv und würde sonst alles abschatten). Es ist immer vorhanden, aber nachts
-  // auf Helligkeit 0 – so ändert sich die Lichtanzahl nie (sonst müssten alle Shader neu übersetzt werden = Ruckler).
-  // Kein Schatten: Im Strahl steht nichts, und so spart es Grafikspeicher.
-  const sunLight = new THREE.SpotLight(0xfff0cf, 0, 0, 0.22, 0.55, 2);
-  sunLight.position.set(0, 1.95, D - 0.12);
-  sunLight.target.position.set(0.1, 0, -0.5);
-  sunLight.layers.enable(1);
-  scene.add(sunLight);
-  scene.add(sunLight.target);
-
   const torchLight = new THREE.PointLight(0xff9a3c, TORCH_INTENSITY, 0, 2);
   torchLight.position.copy(flameWorld);
   torchLight.castShadow = true;
@@ -388,6 +391,7 @@ export function createWorld(THREE, renderer) {
   torchLight.shadow.camera.far = 16;
   torchLight.shadow.bias = -0.0006;
   torchLight.shadow.normalBias = 0.03;
+  torchLight.shadow.camera.updateProjectionMatrix();   // nötig, damit near/far wirklich gelten
   torchLight.layers.enable(1);
   scene.add(torchLight);
 
@@ -399,6 +403,7 @@ export function createWorld(THREE, renderer) {
   corridorLight.shadow.camera.far = 12;
   corridorLight.shadow.bias = -0.0008;
   corridorLight.shadow.normalBias = 0.04;
+  corridorLight.shadow.camera.updateProjectionMatrix();
   corridorLight.layers.enable(1);
   scene.add(corridorLight);
 
@@ -414,37 +419,78 @@ export function createWorld(THREE, renderer) {
   dustPos.set(dustBase);
   const dustGeo = new THREE.BufferGeometry();
   dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
-  const dust = new THREE.Points(dustGeo, new THREE.PointsMaterial({
+  const dustMat = new THREE.PointsMaterial({
     size: 0.03, map: T.glow, color: 0xffc080, transparent: true, opacity: 0.45,
     blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, fog: false,
-  }));
+  });
+  const dust = new THREE.Points(dustGeo, dustMat);
   dust.frustumCulled = false;
   scene.add(dust);
 
-  // ---------- Tageslicht: 0 = Nacht, 1 = Sonne scheint durch das Fenster ----------
-  const NIGHT = {
-    sky: new THREE.Color(0x101a30), hemiSky: new THREE.Color(0x4a5a80), hemiGround: new THREE.Color(0x2a1d12),
-    fog: new THREE.Color(0x050302),
-  };
-  const DAY = {
-    sky: new THREE.Color(0xcfe8ff), hemiSky: new THREE.Color(0xb8c8e8), hemiGround: new THREE.Color(0x6b5238),
-    fog: new THREE.Color(0x2b2620),
-  };
-  let daylight = 0;
-  let debugBright = false;   // nur für die Diagnose-Anzeige: sehr helles Grundlicht, um zu prüfen, ob die Zelle überhaupt gezeichnet wird
-  function setDaylight(amount) {
-    const d = Math.max(0, Math.min(1, Number.isFinite(amount) ? amount : 0));
-    daylight = d;
-    sunLight.intensity = SUN_INTENSITY * d;
-    hemi.intensity = debugBright ? 25 : AMBIENT_INTENSITY + (DAY_AMBIENT - AMBIENT_INTENSITY) * d;
-    hemi.color.lerpColors(NIGHT.hemiSky, DAY.hemiSky, d);
-    hemi.groundColor.lerpColors(NIGHT.hemiGround, DAY.hemiGround, d);
-    M.sky.color.lerpColors(NIGHT.sky, DAY.sky, d);
-    fog.color.lerpColors(NIGHT.fog, DAY.fog, d);
-    dust.material.opacity = 0.45 + 0.25 * d;   // im Sonnenstrahl sieht man den Staub besser
+  // ---------- Morgenlicht ----------
+  // Die Sonne (mit Schatten der Gitterstäbe) wird erst gebraucht, wenn der Spieler geschlafen hat. Bis dahin spart das
+  // Spiel das zusätzliche Licht. prepareMorning() wird aufgerufen, solange der Bildschirm schwarz ist (das Übersetzen der
+  // Licht-Programme kann kurz ruckeln, das sieht dann niemand).
+  let sun = null;
+  let beam = null;
+  let morningT = 0;
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const skyNight = new THREE.Color(0x101a30), skyDay = new THREE.Color(0xffe6b8);
+  const hemiSkyNight = new THREE.Color(0x4a5a80), hemiSkyDay = new THREE.Color(0xc4d4ee);
+  const hemiGroundNight = new THREE.Color(0x2a1d12), hemiGroundDay = new THREE.Color(0x6a5038);
+  const fogNight = new THREE.Color(0x050302), fogDay = new THREE.Color(0x2a2218);
+
+  function prepareMorning() {
+    if (sun) return;
+    const target = new THREE.Vector3(0, (WIN.y0 + WIN.y1) / 2, D + WT / 2);
+    sun = new THREE.DirectionalLight(0xffd9a0, 0);
+    sun.position.set(target.x - SUN_DIR.x * 12, target.y - SUN_DIR.y * 12, target.z - SUN_DIR.z * 12);
+    sun.target.position.copy(target);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -4.5; sun.shadow.camera.right = 4.5;
+    sun.shadow.camera.top = 4.5; sun.shadow.camera.bottom = -4.5;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 30;
+    sun.shadow.camera.updateProjectionMatrix();   // nötig, damit die Grenzen wirklich gelten
+    sun.shadow.bias = -0.0005;
+    sun.shadow.normalBias = 0.03;
+    sun.layers.enable(1);
+    scene.add(sun);
+    scene.add(sun.target);
+    renderer.shadowMap.needsUpdate = true;   // Schatten der Fensterwand und Gitterstäbe einmal berechnen
+
+    // schwach sichtbarer Lichtstrahl vom Fenster zum Boden (nur Optik)
+    const L = 3.9;
+    beam = new THREE.Mesh(
+      new THREE.BoxGeometry(0.55, 0.45, L),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe0a8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+        depthWrite: false, side: THREE.DoubleSide, fog: false,
+      }),
+    );
+    beam.position.set(target.x - 0 + SUN_DIR.x * (L / 2), target.y + SUN_DIR.y * (L / 2), D + SUN_DIR.z * (L / 2));
+    beam.lookAt(beam.position.x + SUN_DIR.x, beam.position.y + SUN_DIR.y, beam.position.z + SUN_DIR.z);
+    scene.add(beam);
   }
-  setDaylight(0);
-  function setDebugBright(on) { debugBright = !!on; setDaylight(daylight); }
+
+  // t: 0 = Nacht (wie bisher), 1 = voller Morgen. Kann jedes Bild aufgerufen werden.
+  function setMorning(t) {
+    t = clamp01(t);
+    if (t === morningT) return;
+    morningT = t;
+    if (t > 0) prepareMorning();
+    if (sun) sun.intensity = MORNING_SUN * t;
+    if (beam) beam.material.opacity = 0.07 * t;
+    hemi.intensity = lerp(AMBIENT_INTENSITY, MORNING_AMBIENT, t);
+    hemi.color.copy(hemiSkyNight).lerp(hemiSkyDay, t);
+    hemi.groundColor.copy(hemiGroundNight).lerp(hemiGroundDay, t);
+    M.sky.color.copy(skyNight).lerp(skyDay, t);
+    scene.fog.color.copy(fogNight).lerp(fogDay, t);
+    scene.fog.density = lerp(0.06, 0.042, t);
+    renderer.setClearColor(scene.fog.color, 1);
+    dustMat.opacity = lerp(0.45, 0.85, t);
+  }
 
   // ---------- Animation (Fackelflackern, Staub) ----------
   function update(t) {
@@ -468,11 +514,9 @@ export function createWorld(THREE, renderer) {
     bounds: BOUNDS,
     spawn: SPAWN,
     textures: T,
-    background: 0x030201,   // Farbe hinter allem (Löschfarbe des Renderers, siehe oben)
     setEndDoor,
-    setDaylight,
-    setDebugBright,
-    get daylight() { return daylight; },
+    prepareMorning,
+    setMorning,
     update,
   };
 }

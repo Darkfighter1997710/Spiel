@@ -5,37 +5,24 @@ Gefängniszelle und kannst dich frei bewegen.
 
 **Enthalten:** 3D-Zelle mit symmetrischen Wänden · Ich-Perspektive mit sichtbaren Armen und Händen ·
 dynamischer Joystick · Kamera per Wischen · Gehen · Sprinten · Springen · Physik und Kollisionen ·
-**ein Gefängniswärter, der nach 15 Sekunden Spielzeit an die Gittertür kommt und mit dir spricht** ·
-**im Bett schlafen: danach scheint die Sonne durch das Fenster und die Zelle wird heller.**
+**ein Gefängniswärter, der nach 15 Sekunden Spielzeit an die Gittertür kommt und mit dir spricht, Schlafen im Bett und Morgenlicht in der Zelle.**
 **Noch nicht enthalten:** Monster, Waffen, Inventar, Quests, Ton (kommen in späteren Phasen).
 
 ## Der Wärter
 
 * Nach **15 Sekunden Spielzeit** öffnet sich am Ende des Gangs die Holztür. Der Wärter geht zur Gittertür
   (ca. 4 Sekunden später beginnt er zu sprechen). Pausen in den Einstellungen zählen nicht mit.
+* Er sagt dir: **Morgen früh ist deine Hinrichtung, es gibt keinen Ausweg, und du sollst jetzt schlafen**, um am Tag der
+  Hinrichtung bei Kräften zu sein. Du kannst dazwischen antworten (das ändert nur den Ton, nicht den Inhalt).
 * Während des Gesprächs steuert sich die Spielfigur nicht selbst: Die Kamera dreht sich zum Wärter, Joystick und
   Buttons verschwinden. **Tippen** irgendwo zeigt den Text sofort ganz bzw. geht weiter, bei den Antworten tippst du auf
   den Knopf deiner Wahl.
-* Danach dreht er sich um, geht zurück, die Tür schließt sich, und du kannst weiterspielen. Er kommt einmal pro Start.
-* Er sagt dir, dass du **morgen zur Hinrichtung** musst, und rät dir, **jetzt zu schlafen**, damit du morgen fit bist.
+* Danach dreht er sich um, geht zurück, die Tür schließt sich.
+* **Schlafen:** Es erscheint der Hinweis „Du solltest jetzt schlafen. Geh zum Bett.“ Gehst du zum Bett (links hinten), erscheint
+  der Knopf **Schlafen**. Du legst dich hin, das Bild wird schwarz („Die Nacht vergeht …“), dann öffnest du die Augen: **Das
+  Morgenlicht scheint durchs Fenster in die Zelle**, die Gitterstäbe werfen Streifen auf den Boden, und der ganze Raum ist
+  heller. Du stehst neben dem Bett auf und kannst dich wieder frei bewegen. Das geht einmal pro Spielstart.
 * Den Text findest du in `js/dialogue.js`, die Wartezeit (`triggerAfter`) in `js/guard-event.js`.
-
-## Schlafen
-
-* Wenn der Wärter weg ist, erscheint kurz der Hinweis „Geh zum Bett“. Das Bett steht **links hinten**.
-* Direkt am Bett erscheint der Knopf **Schlafen**. Tippen: Der Bildschirm wird schwarz („Du schläfst ein …“), dann liegst du im
-  Bett. Beim Aufwachen geht die Sonne auf: Licht fällt durch das Fenster, die ganze Zelle ist heller. Dann stehst du wieder auf
-  und kannst weiterspielen. Das Licht bleibt. Schlafen geht **einmal pro Spielstart**; Pausen zählen nicht mit.
-* Zeiten in `js/sleep-event.js` (`SLEEP`), Helligkeit der Sonne und des Tageslichts in `js/world.js` (`SUN_INTENSITY`,
-  `DAY_AMBIENT`).
-
-## Wenn die Zelle nicht sichtbar ist (nur die Arme)
-
-1. Auf dem Startbildschirm unten steht die **Versionsnummer** (jetzt 0.4.2). Steht dort etwas anderes, lädt dein Browser alte
-   Dateien: Seite neu laden, notfalls im Chrome-Menü die Website-Daten der Seite löschen.
-2. Einstellungen (Regler-Symbol oben rechts) → **Diagnose-Anzeige** einschalten. Oben links erscheinen Zahlen und Fehlermeldungen.
-   Mit den drei Knöpfen „Schatten“, „Nebel“, „Testlicht“ lässt sich ausprobieren, was die Zelle sichtbar macht.
-3. Einen Screenshot der Anzeige schicken (zeigt auch die Grafikkarte und Fehlermeldungen).
 
 ## Steuerung
 
@@ -109,7 +96,7 @@ npx cap open android         # in Android Studio: Build → Build APK(s)
 ```
 index.html, style.css, main.js   Seite, Oberfläche, Start und Hauptschleife
 manifest.json                    Angaben für „Zum Startbildschirm hinzufügen"
-js/                              Spiel-Module (Laden, Maße, Physik, Steuerung, Texturen, Welt, Arme, Wärter, Gespräch, Schlafen)
+js/                              Spiel-Module (Laden, Maße, Physik, Steuerung, Texturen, Welt, Arme)
 libs/                            hier liegt three.module.min.js (siehe oben)
 assets/icons/                    App-Symbole
 scripts/prepare-web.js           bereitet den Ordner "www" für die Android-App vor
@@ -123,7 +110,7 @@ Texturen beim Start erzeugt. Dadurch kann keine Datei fehlen.
 ## Anpassen
 
 * **Zu dunkel/hell:** im Spiel Einstellungen → Helligkeit. Dauerhaft: oben in `js/world.js` die Werte
-  `TORCH_INTENSITY` und `AMBIENT_INTENSITY` (Nacht) sowie `SUN_INTENSITY` und `DAY_AMBIENT` (nach dem Schlafen).
+  `TORCH_INTENSITY` und `AMBIENT_INTENSITY`.
 * **Lauf-/Sprintgeschwindigkeit, Sprunghöhe:** oben in `js/physics.js` (`PLAYER`).
 * **Zu langsam auf dem Gerät:** Das Spiel senkt die Auflösung automatisch. Zusätzlich kann in `main.js`
   `Math.min(dpr, 1.75)` kleiner gewählt werden.
